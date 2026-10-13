@@ -1,0 +1,22 @@
+---
+verify_namespace: microservice
+verify_kubeconfig: /etc/kubernetes/admin.conf
+
+verify_deployments:
+  - adservice
+  - cartservice
+  - checkoutservice
+  - currencyservice
+  - emailservice
+  - frontend
+  - paymentservice
+  - productcatalogservice
+  - recommendationservice
+  - redis-cart
+  - shippingservice
+
+# The project only asks for "recognisable content".
+# These cover both names commonly used by this application generation.
+storefront_markers:
+  - "Online Boutique"
+  - "Hipster Shop"

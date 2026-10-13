@@ -119,3 +119,24 @@ hiện bug và các overrides.
 
 Cuối playbook in URL `http://192.168.56.11:<NodePort>/`. Dùng port trong output,
 không hardcode port của lần deploy trước.
+
+## Part 4 — Verify và thử ứng dụng
+
+```bash
+ansible-playbook playbooks/verify.yml
+```
+
+Playbook assert hai node Ready và đúng private IP, 11 deployments có một
+replica Ready/Available, checkout có tên đúng và không còn `servicename`,
+frontend là NodePort hợp lệ, HTTP 200 và nội dung chứa một marker trong
+`vars/verify.yml`. HTTP request chạy từ master tới worker NodePort.
+
+Mở URL trên browser của host, xem sản phẩm, thêm hàng vào cart, reload kiểm tra
+cart còn dữ liệu và hoàn tất một đơn hàng. Homepage HTTP 200 không thay thế
+kiểm thử checkout. Lưu kết quả ở báo cáo bên ngoài repo.
+
+Có thể chạy Parts 2–4 bằng entry point chung sau khi tạo VM:
+
+```bash
+ansible-playbook site.yml
+```
