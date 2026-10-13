@@ -1,4 +1,5 @@
 ---
+# Legacy variables used only by main.yml. Project 01 uses vars/cluster.yml.
 swap_file_state: absent
 swap_file_path: /dev/mapper/packer--debian--9--amd64--vg-swap_1
 

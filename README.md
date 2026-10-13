@@ -61,3 +61,26 @@ sau khi `vagrant up` thành công. Kiểm tra interface bằng:
 ```bash
 ansible k8s -m ansible.builtin.command -a 'ip -br address'
 ```
+
+## Part 2 — Kubernetes cluster
+
+```bash
+ansible-playbook playbooks/cluster.yml
+```
+
+Playbook tắt swap ngay và trong fstab; nạp overlay/br_netfilter; cấu hình
+IP forwarding và bridge sysctl; cài containerd dùng systemd cgroups; chạy
+kubeadm init/join qua role Kubernetes; cài Helm 3 trên master; đợi từng node
+inventory, kube-system pods và Flannel sẵn sàng.
+
+Trong `vars/cluster.yml`:
+
+- `--node-ip={{ ansible_host }}` ép kubelet đăng ký private IP từng VM.
+- Flannel dùng `--iface=enp0s8`, interface có IP `192.168.56.x` của lab.
+- `enp0s3` thường là NAT; các VM có thể cùng mang IP NAT và không thể dùng
+  địa chỉ đó để liên lạc trực tiếp như private network.
+- Kubernetes dùng nhánh 1.32; Flannel và Helm được pin phiên bản cụ thể.
+
+Node IP và Flannel interface là hai cấu hình riêng. Node Ready chưa chứng minh
+kết nối liên node hoạt động. Nếu tên interface khác, kiểm tra `ip -br address`
+rồi chỉnh biến private interface bằng Ansible.

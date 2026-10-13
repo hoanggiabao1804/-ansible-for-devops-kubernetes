@@ -1,0 +1,39 @@
+---
+# Kubernetes cluster network.
+kubernetes_version: "1.32"
+
+kubernetes_pod_network:
+  cni: flannel
+  cidr: "10.244.0.0/16"
+
+# Keep the control plane dedicated.
+kubernetes_allow_pods_on_control_plane: false
+
+# Kubernetes API must advertise the Vagrant private address.
+kubernetes_apiserver_advertise_address: "192.168.56.10"
+
+# Pin kubelet to each VM's private Vagrant IP.
+kubernetes_kubelet_extra_args: "--node-ip={{ ansible_host }}"
+
+# Explicitly align kubelet with containerd.
+kubernetes_config_kubelet_configuration:
+  cgroupDriver: systemd
+
+# containerd configuration.
+containerd_config_default_write: true
+containerd_config_cgroup_driver_systemd: true
+
+# Vagrant private interface discovered in Part 1.
+kubernetes_private_interface: "enp0s8"
+
+# Pin Flannel for reproducible builds.
+flannel_version: "v0.28.9"
+flannel_manifest_url: >-
+  https://github.com/flannel-io/flannel/releases/download/{{ flannel_version }}/kube-flannel.yml
+flannel_manifest_path: "/tmp/kube-flannel-vagrant.yml"
+
+# Tell geerlingguy.kubernetes to apply our patched manifest.
+kubernetes_flannel_manifest_file: "{{ flannel_manifest_path }}"
+
+# Project explicitly uses Helm 3.
+helm_version: "v3.22.0"
