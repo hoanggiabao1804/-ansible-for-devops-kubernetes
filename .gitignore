@@ -1,0 +1,21 @@
+# Vagrant runtime state.
+.vagrant/
+
+# Downloaded Ansible dependencies.
+roles/
+collections/
+
+# Ansible runtime.
+*.retry
+
+# Kubernetes credentials / secrets.
+admin.conf
+kubeconfig
+kubeconfig.*
+join-command*
+join-token*
+
+# Editor / OS.
+.vscode/
+.idea/
+.DS_Store

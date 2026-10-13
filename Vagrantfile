@@ -1,41 +1,46 @@
 # -*- mode: ruby -*-
 # vi: set ft=ruby :
 
-VAGRANTFILE_API_VERSION = "2"
+Vagrant.configure("2") do |config|
+  # Ubuntu 22.04 LTS as required by Project 1.
+  config.vm.box = "ubuntu/jammy64"
 
-Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
-  config.vm.box = "geerlingguy/debian9"
-  config.ssh.insert_key = false
-  config.vm.provider "virtualbox"
+  # Let Vagrant generate a private SSH key for each machine.
+  config.ssh.insert_key = true
 
-  config.vm.provider :virtualbox do |v|
-    v.memory = 1536
-    v.cpus = 1
-    v.linked_clone = true
-  end
+  # Do not depend on the /vagrant synced directory.
+  # Vagrant is used only to create the virtual machines.
+  config.vm.synced_folder ".", "/vagrant", disabled: true
 
-  # Define three VMs with static private IP addresses.
-  boxes = [
-    { :name => "master", :ip => "192.168.56.2" },
-    { :name => "node1", :ip => "192.168.56.3" },
-    { :name => "node2", :ip => "192.168.56.4" },
+  config.vm.boot_timeout = 600
+
+  machines = [
+    {
+      name: "master",
+      ip: "192.168.56.10",
+      cpus: 2,
+      memory: 2048
+    },
+    {
+      name: "node1",
+      ip: "192.168.56.11",
+      cpus: 2,
+      memory: 4096
+    }
   ]
 
-  # Provision each of the VMs.
-  boxes.each do |opts|
-    config.vm.define opts[:name] do |config|
-      config.vm.hostname = opts[:name] + ".k8s.test"
-      config.vm.network "private_network", ip: opts[:ip]
+  machines.each do |machine|
+    config.vm.define machine[:name] do |node|
+      node.vm.hostname = machine[:name]
 
-      # Provision all the VMs using Ansible after last VM is up.
-      if opts[:name] == "node2"
-        config.vm.provision "ansible" do |ansible|
-          ansible.playbook = "main.yml"
-          ansible.inventory_path = "inventory"
-          ansible.limit = "all"
-        end
+      node.vm.network "private_network",
+        ip: machine[:ip]
+
+      node.vm.provider "virtualbox" do |vb|
+        vb.name = "project01-#{machine[:name]}"
+        vb.cpus = machine[:cpus]
+        vb.memory = machine[:memory]
       end
     end
   end
-
 end

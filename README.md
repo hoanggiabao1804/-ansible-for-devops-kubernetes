@@ -1,42 +1,63 @@
-# Ansible-based Kubernetes cluster example
+# Project 01 — Part 1–5
 
-This is an example Kubernetes cluster built and managed with Ansible. The example is explained in more detail in Chapter 13 of [Ansible for DevOps](https://www.ansiblefordevops.com/).
+Triển khai Kubernetes hai node và Online Boutique bằng Vagrant, Ansible và Helm.
+Branch `project01` dùng frontend **NodePort**. Ingress và reliability được phát
+triển trên các branch riêng. Report và evidence được lưu ngoài repository.
 
-## Quick Start Guide
+## Điều kiện chạy
 
-### 1 - Install dependencies (VirtualBox, Vagrant, Ansible)
+| VM | Private IP | vCPU | RAM | Vai trò |
+| --- | --- | --- | --- | --- |
+| master | 192.168.56.10 | 2 | 2048 MB | Control plane |
+| node1 | 192.168.56.11 | 2 | 4096 MB | Worker chạy 11 thành phần ứng dụng |
 
-  1. Download and install [VirtualBox](https://www.virtualbox.org/wiki/Downloads).
-  2. Download and install [Vagrant](http://www.vagrantup.com/downloads.html).
-  3. [Mac/Linux only] Install [Ansible](https://docs.ansible.com/ansible/latest/installation_guide/intro_installation.html).
+Host Linux cần VirtualBox 7+, Vagrant 2.3+, Git, Python 3.11+ và
+**ansible-core 2.18+**. Bộ collection đã pin yêu cầu tối thiểu Ansible 2.18;
+không dùng Ansible 2.14 với bộ dependency này. Kiểm tra cú pháp khi bổ sung
+source dùng ansible-core 2.21.4. Host cần đủ tài nguyên cho tổng 6 GiB RAM của
+VM và hệ điều hành host. Host/VM cần Internet để tải dependencies và images.
 
-Note for Windows users: *This guide assumes you're on a Mac or Linux host. Windows hosts are unsupported at this time.*
+Chạy **mọi lệnh bên dưới từ thư mục `kubernetes/`**, nơi có `ansible.cfg`:
 
-### 2 - Build the Virtual Machine
+```bash
+cd kubernetes
+VBoxManage --version
+vagrant --version
+ansible --version
+git --version
+```
 
-  1. Download this project and put it wherever you want.
-  2. Open Terminal, cd to this directory (containing the `Vagrantfile` and this README file).
-  3. Run `ansible-galaxy install -r requirements.yml -p ./roles` to install required Ansible roles.
-  4. Type in `vagrant up`, and let Vagrant do its magic.
+Vagrant chỉ tạo VM Ubuntu 22.04; không có provisioner. Ansible dùng
+`inventory.ini` và SSH key riêng do Vagrant sinh trong `.vagrant/`.
+Không dùng `vagrant provision` để dựng cluster.
 
-Note: *If there are any errors during the course of running `vagrant up`, and it drops you back to your command prompt, just run `vagrant provision` to continue building the VM from where you left off. If there are still errors after doing this a few times, post an issue to this project's issue queue on GitHub with the error.*
+## Part 1 — Dependencies và VM
 
-### 3 - Configure your host machine to access the VM.
+```bash
+ansible-galaxy install -r requirements.yml
+vagrant up
+vagrant status
+ansible k8s -m ping
+```
 
-  1. [Edit your hosts file](http://docs.rackspace.com/support/how-to/modify-your-hosts-file/), adding the line `192.168.56.3  cluster.k8s.test` so you can connect to the VM.
+`ansible.cfg` đặt roles ở `./roles`, collections ở `./collections`; cả hai được
+Git ignore. Không thêm `-p ./roles` vào lệnh cài kết hợp vì Galaxy có thể bỏ qua
+collections. Nếu muốn cài riêng:
 
-### 4 - Deploy applications to the Kubernetes cluster
+```bash
+ansible-galaxy role install -r requirements.yml -p ./roles
+ansible-galaxy collection install -r requirements.yml -p ./collections
+```
 
-For details on how to deploy all these examples, please refer to chapter 14 in Ansible for DevOps. One quick example you can test locally:
+Pins trong `requirements.yml` lấy theo dependency hiện cài của lab.
+`community.general` và `ansible.posix` cung cấp modprobe/sysctl cho role
+Kubernetes; `kubernetes.core` cung cấp các module Helm. Nếu hai thư mục local
+đã có phiên bản khác, cập nhật theo pins trước khi kiểm thử; có thể thêm
+`--force` vào hai lệnh cài riêng để thay dependency local.
 
-  1. cd into the 'examples' directory, and run the `k8s-module.yml` playbook, which creates an Nginx deployment and service on the cluster: `ansible-playbook -i ../inventory k8s-module.yml`
-  2. Copy the nodePort from the final task output in that playbook; this is the port on which Nginx is accessible.
-  3. Open your browser and access [http://cluster.k8s.test:32474/](http://cluster.k8s.test:32474/) (assuming nodePort is `32474`).
+Ping phải SUCCESS trên cả master và node1. Key trong inventory chỉ tồn tại
+sau khi `vagrant up` thành công. Kiểm tra interface bằng:
 
-## Notes
-
-  - To shut down the virtual machine, enter `vagrant halt` in the Terminal in the same folder that has the `Vagrantfile`. To destroy it completely (if you want to save a little disk space, or want to rebuild it from scratch with `vagrant up` again), type in `vagrant destroy`.
-
-## About the Author
-
-This project was created by [Jeff Geerling](https://www.jeffgeerling.com/) as an example for [Ansible for DevOps](https://www.ansiblefordevops.com/).
+```bash
+ansible k8s -m ansible.builtin.command -a 'ip -br address'
+```
