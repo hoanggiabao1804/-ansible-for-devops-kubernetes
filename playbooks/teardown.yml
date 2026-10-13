@@ -1,0 +1,175 @@
+---
+- name: Remove Online Boutique but keep Kubernetes cluster
+  hosts: k8s_master
+  become: true
+  gather_facts: false
+
+  vars_files:
+    - "{{ playbook_dir }}/../vars/microservices.yml"
+
+  tasks:
+
+    # ================================================================
+    # 1. Show current Helm releases
+    # ================================================================
+
+    - name: Read installed Online Boutique Helm releases.
+      ansible.builtin.command:
+        cmd: >-
+          {{ helm_binary_path }} list
+          --namespace {{ microservice_namespace }}
+          --short
+          --kubeconfig {{ kubernetes_admin_conf }}
+      register: helm_releases_before
+      changed_when: false
+
+    - name: Show releases before teardown.
+      ansible.builtin.debug:
+        var: helm_releases_before.stdout_lines
+
+
+    # ================================================================
+    # 2. Uninstall Online Boutique
+    # ================================================================
+
+    - name: Uninstall Online Boutique Helm releases.
+      kubernetes.core.helm:
+        name: "{{ item.release }}"
+        release_namespace: "{{ microservice_namespace }}"
+        kubeconfig: "{{ kubernetes_admin_conf }}"
+        binary_path: "{{ helm_binary_path }}"
+        state: absent
+        wait: true
+        timeout: "5m0s"
+      loop: "{{ microservices | reverse | list }}"
+      loop_control:
+        label: "{{ item.release }}"
+
+
+    # ================================================================
+    # 3. Verify Helm releases are gone
+    # ================================================================
+
+    - name: Read Helm releases after teardown.
+      ansible.builtin.command:
+        cmd: >-
+          {{ helm_binary_path }} list
+          --namespace {{ microservice_namespace }}
+          --short
+          --kubeconfig {{ kubernetes_admin_conf }}
+      register: helm_releases_after
+      changed_when: false
+
+    - name: Assert all Online Boutique Helm releases were removed.
+      ansible.builtin.assert:
+        that:
+          - helm_releases_after.stdout | trim == ""
+        fail_msg: >-
+          Some Online Boutique Helm releases still exist:
+          {{ helm_releases_after.stdout }}
+        success_msg: >-
+          All Online Boutique Helm releases were removed successfully.
+
+
+    # ================================================================
+    # 4. Verify no application deployments remain
+    # ================================================================
+
+    - name: Read remaining application Deployments.
+      ansible.builtin.command:
+        cmd: >-
+          kubectl
+          --kubeconfig {{ kubernetes_admin_conf }}
+          --namespace {{ microservice_namespace }}
+          get deployments
+          -o name
+      register: remaining_deployments
+      changed_when: false
+
+    - name: Assert no application Deployments remain.
+      ansible.builtin.assert:
+        that:
+          - remaining_deployments.rc == 0
+          - remaining_deployments.stdout | trim == ""
+        fail_msg: >-
+          Application deployments still exist:
+          {{ remaining_deployments.stdout }}
+        success_msg: >-
+          No Online Boutique Deployments remain.
+
+
+    # ================================================================
+    # 5. Prove Kubernetes cluster is still healthy
+    # ================================================================
+
+    - name: Wait for every inventory node to be Ready after teardown.
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - --kubeconfig
+          - "{{ kubernetes_admin_conf }}"
+          - wait
+          - --for=condition=Ready
+          - node
+          - "{{ item }}"
+          - --timeout=300s
+      loop: "{{ groups['k8s'] }}"
+      changed_when: false
+
+    - name: Wait for kube-system pods to be Ready after teardown.
+      ansible.builtin.command:
+        cmd: >-
+          kubectl --kubeconfig {{ kubernetes_admin_conf }}
+          --namespace kube-system wait --for=condition=Ready
+          pods --all --timeout=300s
+      changed_when: false
+
+    - name: Wait for the Flannel rollout after teardown.
+      ansible.builtin.command:
+        cmd: >-
+          kubectl --kubeconfig {{ kubernetes_admin_conf }}
+          --namespace kube-flannel rollout status
+          daemonset/kube-flannel-ds --timeout=300s
+      changed_when: false
+
+    - name: Read Kubernetes node status after teardown.
+      ansible.builtin.command:
+        cmd: >-
+          kubectl
+          --kubeconfig {{ kubernetes_admin_conf }}
+          get nodes
+          -o wide
+      register: nodes_after_teardown
+      changed_when: false
+
+    - name: Print Kubernetes node status.
+      ansible.builtin.debug:
+        var: nodes_after_teardown.stdout_lines
+
+    - name: Read kube-system pods after teardown.
+      ansible.builtin.command:
+        cmd: >-
+          kubectl
+          --kubeconfig {{ kubernetes_admin_conf }}
+          get pods
+          --namespace kube-system
+      register: system_pods_after_teardown
+      changed_when: false
+
+    - name: Print kube-system pods.
+      ansible.builtin.debug:
+        var: system_pods_after_teardown.stdout_lines
+
+
+    # ================================================================
+    # 6. Summary
+    # ================================================================
+
+    - name: Print teardown summary.
+      ansible.builtin.debug:
+        msg:
+          - "Online Boutique releases: REMOVED"
+          - "Application deployments: REMOVED"
+          - "Kubernetes cluster: PRESERVED"
+          - "Inventory nodes and kube-system pods: READY"
+          - "Flannel DaemonSet rollout: COMPLETE"

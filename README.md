@@ -140,3 +140,84 @@ Có thể chạy Parts 2–4 bằng entry point chung sau khi tạo VM:
 ```bash
 ansible-playbook site.yml
 ```
+
+## Kiểm tra source và idempotency
+
+Sau khi cài dependency, kiểm tra local không cấu hình VM:
+
+```bash
+ansible-inventory --graph
+ansible-playbook site.yml --syntax-check
+ansible-playbook playbooks/teardown.yml --syntax-check
+```
+
+Sau lần triển khai thành công, chạy lại `ansible-playbook site.yml` hai lần
+khi không đổi cấu hình. Mục tiêu recap là `changed=0` khi trạng thái đã hội tụ.
+So sánh Helm revisions trước/sau, tránh upgrade lại chỉ vì values overrides:
+
+```bash
+ansible k8s_master -b -m ansible.builtin.command -a '/usr/local/bin/helm list -n microservice --kubeconfig /etc/kubernetes/admin.conf'
+```
+
+Nếu còn changed, đọc tên task và nguyên nhân; không che mutation bằng
+`changed_when: false`. Apt có cache TTL một giờ nên refresh sau TTL cần được
+phân biệt với Helm upgrade không cần thiết.
+
+Giới hạn của role Kubernetes 8.2.0: task lấy join command tạo bootstrap token
+mỗi lần chạy nhưng dùng `changed_when: false`; task apply Flannel chỉ tính
+`created`, không tính `configured`. Recap không chứng minh tuyệt đối không có
+mutation. Ghi nhận giới hạn này khi giải thích idempotency; không sửa tay role
+tải về rồi coi đó là source đã quản lý trong Git.
+
+`--check` không thay thế clean build: nhiều task phụ thuộc VM, binary, clone
+và cluster đã tồn tại. Chuyển Git branch cũng không tự đưa cluster từ
+Ingress/reliability về trạng thái baseline.
+
+## Part 5 — Teardown
+
+Gỡ app và giữ cluster:
+
+```bash
+ansible-playbook playbooks/teardown.yml
+```
+
+Playbook uninstall 11 Helm releases theo thứ tự đảo, assert không còn release
+và application deployment, kiểm tra từng node, kube-system và Flannel.
+Namespace `microservice` và clone upstream được giữ để deploy lần sau.
+
+Dừng VM, giữ disk:
+
+```bash
+vagrant halt
+```
+
+Xóa VM và disk để chủ động dựng lại từ đầu:
+
+```bash
+vagrant destroy -f
+```
+
+Destroy xóa toàn bộ cluster trong VM. Chỉ dùng khi đã sẵn sàng mất trạng thái
+hiện tại; sau đó lặp lại Parts 1–4 để kiểm thử clean build. Không tạo lab trùng
+tên VM/private IP khi lab hiện tại vẫn đang chạy.
+
+## Cấu trúc và ví dụ legacy
+
+| Đường dẫn | Vai trò |
+| --- | --- |
+| `Vagrantfile`, `inventory.ini`, `ansible.cfg` | VM và kết nối Ansible |
+| `requirements.yml` | Phiên bản roles/collections |
+| `site.yml` | Build → deploy → verify |
+| `playbooks/{cluster,deploy,verify,teardown}.yml` | Luồng Parts 2–5 |
+| `vars/{cluster,microservices,verify}.yml` | Cấu hình project |
+
+`main.yml`, `vars/main.yml`, `inventory`, `examples/` và manifest cũ trong
+`files/` là ví dụ gốc từ sách, **không thuộc luồng Parts 1–5**. Chúng dùng IP,
+role hoặc phiên bản khác. Dùng entry points trong README này. Manifest Flannel
+thực tế được download và patch bởi `playbooks/cluster.yml`.
+
+`.vagrant/`, dependencies và kubeconfig được Git ignore. Không commit SSH
+private key, kubeconfig, join token; tránh đưa token từ verbose logs vào báo cáo.
+
+Dự án kế thừa ví dụ [Ansible for DevOps](https://github.com/geerlingguy/ansible-for-devops)
+của Jeff Geerling; giữ thông tin bản quyền và LICENSE gốc.
