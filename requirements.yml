@@ -1,8 +1,17 @@
 ---
 roles:
-  - name: geerlingguy.swap
-  - name: geerlingguy.docker
+  - name: geerlingguy.containerd
+    version: "1.4.1"
   - name: geerlingguy.kubernetes
+    version: "8.2.0"
+  - name: geerlingguy.helm
+    version: "1.0.1"
 
 collections:
-  - name: community.kubernetes
+  - name: kubernetes.core
+    version: "6.5.0"
+  # Used by geerlingguy.kubernetes for modprobe and sysctl.
+  - name: community.general
+    version: "13.4.0"
+  - name: ansible.posix
+    version: "2.2.2"

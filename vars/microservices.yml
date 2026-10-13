@@ -1,0 +1,65 @@
+---
+microservice_namespace: microservice
+
+microservice_repo_url: "https://github.com/iankisali/microservice-deployment.git"
+# Same upstream snapshot recorded by the later chart import; keep runtime cloning
+# for Part 3, with all project changes expressed through values overrides.
+microservice_repo_version: "8ed96c8d98625c73b67c7172b6703383ea9e46e9"
+microservice_src: "/opt/microservice-deployment"
+
+kubernetes_admin_conf: "/etc/kubernetes/admin.conf"
+helm_binary_path: "/usr/local/bin/helm"
+helm_diff_version: "v3.12.5"
+
+# Applied to every Helm release.
+microservice_common:
+  appReplicas: 1
+
+microservices:
+  - release: rediscart
+    chart: chart/redis
+    values_file: values/redis-values.yaml
+
+  - release: emailservice
+    chart: chart/microservice
+    values_file: values/email-service-values.yaml
+
+  - release: cartservice
+    chart: chart/microservice
+    values_file: values/cart-service-values.yaml
+
+  - release: currencyservice
+    chart: chart/microservice
+    values_file: values/currency-service-values.yaml
+
+  - release: paymentservice
+    chart: chart/microservice
+    values_file: values/payment-service-values.yaml
+
+  - release: recommendationservice
+    chart: chart/microservice
+    values_file: values/recommendation-service-values.yaml
+
+  - release: productcatalogservice
+    chart: chart/microservice
+    values_file: values/productcatalog-service-values.yaml
+
+  - release: shippingservice
+    chart: chart/microservice
+    values_file: values/shipping-service-values.yaml
+
+  - release: adservice
+    chart: chart/microservice
+    values_file: values/ad-service-values.yaml
+
+  - release: checkoutservice
+    chart: chart/microservice
+    values_file: values/checkout-service-values.yaml
+    overrides:
+      appName: checkoutservice
+
+  - release: frontendservice
+    chart: chart/microservice
+    values_file: values/frontend-values.yaml
+    overrides:
+      serviceType: NodePort

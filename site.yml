@@ -1,0 +1,9 @@
+---
+- name: Build Kubernetes cluster
+  ansible.builtin.import_playbook: playbooks/cluster.yml
+
+- name: Deploy Online Boutique
+  ansible.builtin.import_playbook: playbooks/deploy.yml
+
+- name: Verify cluster and application
+  ansible.builtin.import_playbook: playbooks/verify.yml

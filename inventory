@@ -1,3 +1,4 @@
+# Legacy book inventory. Project 01 uses inventory.ini via ansible.cfg.
 [k8s-master]
 master ansible_host=192.168.56.2 kubernetes_role=control_plane
 

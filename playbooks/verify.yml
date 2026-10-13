@@ -1,0 +1,245 @@
+---
+- name: Verify Kubernetes cluster and Online Boutique
+  hosts: k8s_master
+  become: true
+  gather_facts: false
+
+  vars_files:
+    - "{{ playbook_dir }}/../vars/verify.yml"
+
+  vars:
+    expected_nodes:
+      - name: "{{ groups['k8s_master'][0] }}"
+        ip: "{{ hostvars[groups['k8s_master'][0]].ansible_host }}"
+
+      - name: "{{ groups['k8s_nodes'][0] }}"
+        ip: "{{ hostvars[groups['k8s_nodes'][0]].ansible_host }}"
+
+  tasks:
+
+    # ================================================================
+    # 1. Verify Kubernetes nodes
+    # ================================================================
+
+    - name: Read Kubernetes node Ready status and InternalIP.
+      ansible.builtin.command:
+        cmd: >-
+          kubectl
+          --kubeconfig {{ verify_kubeconfig }}
+          get node {{ item.name }}
+          -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}
+          {.status.addresses[?(@.type=="InternalIP")].address}'
+      loop: "{{ expected_nodes }}"
+      loop_control:
+        label: "{{ item.name }}"
+      register: node_status
+      changed_when: false
+
+    - name: Assert Kubernetes nodes are Ready and use private IPs.
+      ansible.builtin.assert:
+        that:
+          - item.stdout.split() | length == 2
+          - item.stdout.split()[0] == "True"
+          - item.stdout.split()[1] == item.item.ip
+        fail_msg: >-
+          Node {{ item.item.name }} is not Ready or is not registered
+          with expected private IP {{ item.item.ip }}.
+        success_msg: >-
+          Node {{ item.item.name }} is Ready with private IP
+          {{ item.item.ip }}.
+      loop: "{{ node_status.results }}"
+      loop_control:
+        label: "{{ item.item.name }}"
+
+
+    # ================================================================
+    # 2. Verify all 11 deployments exist and are available
+    # ================================================================
+
+    - name: Read Online Boutique deployment replica status.
+      ansible.builtin.command:
+        cmd: >-
+          kubectl
+          --kubeconfig {{ verify_kubeconfig }}
+          -n {{ verify_namespace }}
+          get deployment {{ item }}
+          -o jsonpath='{.spec.replicas}
+          {.status.readyReplicas}
+          {.status.availableReplicas}'
+      loop: "{{ verify_deployments }}"
+      register: deployment_status
+      changed_when: false
+
+    - name: Assert all Online Boutique deployments are available.
+      ansible.builtin.assert:
+        that:
+          - item.rc == 0
+          - item.stdout.split() | length == 3
+          - item.stdout.split()[0] == "1"
+          - item.stdout.split()[1] == "1"
+          - item.stdout.split()[2] == "1"
+        fail_msg: >-
+          Deployment {{ item.item }} is not fully available.
+          Current state: {{ item.stdout }}
+        success_msg: >-
+          Deployment {{ item.item }} is available (1/1).
+      loop: "{{ deployment_status.results }}"
+      loop_control:
+        label: "{{ item.item }}"
+
+
+    # ================================================================
+    # 3. Verify checkoutservice naming fix
+    # ================================================================
+
+    - name: Verify checkoutservice Deployment exists.
+      ansible.builtin.command:
+        cmd: >-
+          kubectl
+          --kubeconfig {{ verify_kubeconfig }}
+          -n {{ verify_namespace }}
+          get deployment checkoutservice
+      register: checkout_deployment
+      changed_when: false
+
+    - name: Verify checkoutservice Service exists.
+      ansible.builtin.command:
+        cmd: >-
+          kubectl
+          --kubeconfig {{ verify_kubeconfig }}
+          -n {{ verify_namespace }}
+          get service checkoutservice
+      register: checkout_service
+      changed_when: false
+
+    - name: Check that broken servicename Deployment does not exist.
+      ansible.builtin.command:
+        cmd: >-
+          kubectl
+          --kubeconfig {{ verify_kubeconfig }}
+          -n {{ verify_namespace }}
+          get deployment servicename --ignore-not-found -o name
+      register: broken_checkout_deployment
+      changed_when: false
+
+    - name: Check that broken servicename Service does not exist.
+      ansible.builtin.command:
+        cmd: >-
+          kubectl
+          --kubeconfig {{ verify_kubeconfig }}
+          -n {{ verify_namespace }}
+          get service servicename --ignore-not-found -o name
+      register: broken_checkout_service
+      changed_when: false
+
+    - name: Assert checkoutservice naming override works.
+      ansible.builtin.assert:
+        that:
+          - checkout_deployment.rc == 0
+          - checkout_service.rc == 0
+          - broken_checkout_deployment.rc == 0
+          - broken_checkout_service.rc == 0
+          - broken_checkout_deployment.stdout | trim == ""
+          - broken_checkout_service.stdout | trim == ""
+        fail_msg: >-
+          checkoutservice naming verification failed. The upstream
+          'servicename' bug may still be present.
+        success_msg: >-
+          checkoutservice exists with the correct name and no
+          'servicename' resource exists.
+
+
+    # ================================================================
+    # 4. Verify frontend NodePort
+    # ================================================================
+
+    - name: Read frontend Service type and NodePort.
+      ansible.builtin.command:
+        cmd: >-
+          kubectl
+          --kubeconfig {{ verify_kubeconfig }}
+          -n {{ verify_namespace }}
+          get service frontend
+          -o jsonpath='{.spec.type} {.spec.ports[0].nodePort}'
+      register: frontend_service
+      changed_when: false
+
+    - name: Assert frontend is exposed through NodePort.
+      ansible.builtin.assert:
+        that:
+          - frontend_service.stdout.split() | length == 2
+          - frontend_service.stdout.split()[0] == "NodePort"
+          - frontend_service.stdout.split()[1] | int >= 30000
+          - frontend_service.stdout.split()[1] | int <= 32767
+        fail_msg: >-
+          frontend is not correctly exposed as a Kubernetes NodePort.
+        success_msg: >-
+          frontend is exposed using NodePort
+          {{ frontend_service.stdout.split()[1] }}.
+
+
+    # ================================================================
+    # 5. Build storefront URL
+    # ================================================================
+
+    - name: Set storefront URL.
+      ansible.builtin.set_fact:
+        storefront_url: >-
+          http://{{ hostvars[groups['k8s_nodes'][0]].ansible_host }}:{{
+          frontend_service.stdout.split()[1] }}/
+
+
+    # ================================================================
+    # 6. Verify HTTP storefront
+    # ================================================================
+
+    - name: Request Online Boutique storefront.
+      ansible.builtin.uri:
+        url: "{{ storefront_url }}"
+        method: GET
+        return_content: true
+        status_code: 200
+      register: storefront_http
+      changed_when: false
+      failed_when: false
+      retries: 12
+      delay: 5
+      until:
+        - storefront_http.status | default(0) == 200
+
+    - name: Assert storefront returned HTTP 200.
+      ansible.builtin.assert:
+        that:
+          - storefront_http.status == 200
+        fail_msg: >-
+          Storefront {{ storefront_url }} did not return HTTP 200.
+        success_msg: >-
+          Storefront returned HTTP 200 from {{ storefront_url }}.
+
+    - name: Assert storefront contains recognisable content.
+      ansible.builtin.assert:
+        that:
+          - >-
+            storefront_markers
+            | select('in', storefront_http.content | default(''))
+            | list | length > 0
+        fail_msg: >-
+          Storefront returned HTTP 200, but the expected Online Boutique
+          content was not found.
+        success_msg: >-
+          Storefront response contains recognisable Online Boutique content.
+
+
+    # ================================================================
+    # 7. Print verification summary
+    # ================================================================
+
+    - name: Print verification summary.
+      ansible.builtin.debug:
+        msg:
+          - "Kubernetes nodes: PASS"
+          - "11 Online Boutique deployments: PASS"
+          - "checkoutservice naming: PASS"
+          - "frontend NodePort: PASS"
+          - "Storefront HTTP verification: PASS"
+          - "Storefront URL: {{ storefront_url }}"

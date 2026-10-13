@@ -1,4 +1,6 @@
 ---
+# Legacy book example, not the Project 01 entry point.
+# Use site.yml or playbooks/cluster.yml; see README.md.
 - hosts: k8s
   become: yes
 

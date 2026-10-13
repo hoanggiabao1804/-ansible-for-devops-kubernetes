@@ -1,0 +1,142 @@
+---
+- name: Deploy Online Boutique with Helm
+  hosts: k8s_master
+  become: true
+  gather_facts: true
+
+  vars_files:
+    - "{{ playbook_dir }}/../vars/microservices.yml"
+
+  pre_tasks:
+    - name: Install dependencies required for Git and Helm Ansible module.
+      ansible.builtin.apt:
+        name:
+          - git
+          - curl
+          - python3-yaml
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    # Run as the same become user as the release tasks so Helm finds the plugin.
+    - name: Install Helm diff for reliable change detection.
+      kubernetes.core.helm_plugin:
+        plugin_path: https://github.com/databus23/helm-diff
+        plugin_version: "{{ helm_diff_version }}"
+        binary_path: "{{ helm_binary_path }}"
+        state: present
+
+    - name: Clone upstream microservice Helm charts.
+      ansible.builtin.git:
+        repo: "{{ microservice_repo_url }}"
+        dest: "{{ microservice_src }}"
+        version: "{{ microservice_repo_version }}"
+        update: true
+        force: true
+
+    # Reproduce the upstream checkout naming bug before applying our override.
+    - name: Render upstream checkout chart.
+      ansible.builtin.command:
+        cmd: >-
+          {{ helm_binary_path }} template checkoutservice
+          {{ microservice_src }}/chart/microservice
+          -f {{ microservice_src }}/values/checkout-service-values.yaml
+      register: checkout_upstream_render
+      changed_when: false
+
+    - name: Confirm the upstream checkout chart contains the naming bug.
+      ansible.builtin.assert:
+        that:
+          - "'name: servicename' in checkout_upstream_render.stdout"
+        fail_msg: >-
+          Expected the upstream checkout chart to render the default
+          name 'servicename', but it did not.
+        success_msg: >-
+          Upstream checkout bug reproduced: the chart renders
+          'servicename' before our override is applied.
+
+  tasks:
+    - name: Deploy Online Boutique Helm releases.
+      kubernetes.core.helm:
+        name: "{{ item.release }}"
+        chart_ref: "{{ microservice_src }}/{{ item.chart }}"
+        release_namespace: "{{ microservice_namespace }}"
+        create_namespace: true
+
+        values_files:
+          - "{{ microservice_src }}/{{ item.values_file }}"
+
+        values: >-
+          {{
+            microservice_common
+            | combine(item.overrides | default({}), recursive=True)
+          }}
+
+        kubeconfig: "{{ kubernetes_admin_conf }}"
+        binary_path: "{{ helm_binary_path }}"
+
+        state: present
+        wait: true
+        timeout: "10m0s"
+      loop: "{{ microservices }}"
+      loop_control:
+        label: "{{ item.release }}"
+      register: helm_deployments
+
+    - name: Show installed Helm releases.
+      ansible.builtin.command:
+        cmd: >-
+          {{ helm_binary_path }} list
+          --namespace {{ microservice_namespace }}
+          --kubeconfig {{ kubernetes_admin_conf }}
+      register: helm_release_list
+      changed_when: false
+
+    - name: Print installed Helm releases.
+      ansible.builtin.debug:
+        var: helm_release_list.stdout_lines
+
+    - name: Show Online Boutique deployments.
+      ansible.builtin.command:
+        cmd: >-
+          kubectl
+          --kubeconfig {{ kubernetes_admin_conf }}
+          --namespace {{ microservice_namespace }}
+          get deployments
+      register: boutique_deployments
+      changed_when: false
+
+    - name: Print Online Boutique deployments.
+      ansible.builtin.debug:
+        var: boutique_deployments.stdout_lines
+
+    - name: Show Online Boutique services.
+      ansible.builtin.command:
+        cmd: >-
+          kubectl
+          --kubeconfig {{ kubernetes_admin_conf }}
+          --namespace {{ microservice_namespace }}
+          get services
+      register: boutique_services
+      changed_when: false
+
+    - name: Print Online Boutique services.
+      ansible.builtin.debug:
+        var: boutique_services.stdout_lines
+
+    - name: Get frontend NodePort.
+      ansible.builtin.command:
+        cmd: >-
+          kubectl
+          --kubeconfig {{ kubernetes_admin_conf }}
+          --namespace {{ microservice_namespace }}
+          get service frontend
+          -o jsonpath='{.spec.ports[0].nodePort}'
+      register: frontend_node_port
+      changed_when: false
+
+    - name: Print storefront URL.
+      ansible.builtin.debug:
+        msg: >-
+          Storefront URL:
+          http://{{ hostvars[groups['k8s_nodes'][0]].ansible_host }}:{{ frontend_node_port.stdout }}/
