@@ -84,3 +84,38 @@ Trong `vars/cluster.yml`:
 Node IP và Flannel interface là hai cấu hình riêng. Node Ready chưa chứng minh
 kết nối liên node hoạt động. Nếu tên interface khác, kiểm tra `ip -br address`
 rồi chỉnh biến private interface bằng Ansible.
+
+## Part 3 — Online Boutique
+
+```bash
+ansible-playbook playbooks/deploy.yml
+```
+
+Playbook cài Git, curl, PyYAML và
+[helm-diff v3.12.5](https://github.com/databus23/helm-diff/releases/tag/v3.12.5)
+trên master dưới user root. Plugin dùng cùng user với các task Helm để so sánh
+manifest khi kết hợp `values_files` và inline overrides.
+
+Nguồn: [iankisali/microservice-deployment](https://github.com/iankisali/microservice-deployment).
+Clone runtime tại `/opt/microservice-deployment`, pin commit
+`8ed96c8d98625c73b67c7172b6703383ea9e46e9`, cùng snapshot được ghi nhận khi
+import chart ở branch reliability. Không theo `main` để tránh upstream thay đổi
+baseline. Git task quản lý clone; không sửa trực tiếp clone runtime.
+
+Hai chart `chart/microservice` và `chart/redis` tạo 11 Helm releases trong
+namespace `microservice`. Các overrides nằm trong `vars/microservices.yml`:
+
+| Override | Phạm vi | Mục đích |
+| --- | --- | --- |
+| `appReplicas: 1` | Mọi release | Giảm nhu cầu tài nguyên của lab |
+| `serviceType: NodePort` | Frontend | Truy cập từ host, không cần cloud LoadBalancer |
+| `appName: checkoutservice` | Checkout | Sửa tên Deployment/Service mà frontend gọi |
+
+Upstream checkout values có hai key `appImage`, thiếu `appName`, khiến chart
+rơi về tên `servicename`. Playbook render upstream để xác nhận lỗi trước khi
+áp dụng override. Frontend cần `checkoutservice:5050`; homepage vẫn có thể
+hoạt động dù checkout lỗi. Khi đổi upstream SHA, kiểm tra lại assertion tái
+hiện bug và các overrides.
+
+Cuối playbook in URL `http://192.168.56.11:<NodePort>/`. Dùng port trong output,
+không hardcode port của lần deploy trước.
