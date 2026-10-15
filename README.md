@@ -141,6 +141,56 @@ Có thể chạy Parts 2–4 bằng entry point chung sau khi tạo VM:
 ansible-playbook site.yml
 ```
 
+## Checkout Bug Diagnosis — nhiệm vụ đầu của Tuân
+
+Sau khi baseline hoạt động, chạy từ thư mục repo với inventory mặc định:
+
+```bash
+ansible-playbook playbooks/diagnose-checkout.yml
+```
+
+Playbook riêng này không nằm trong `site.yml`. Nó lưu trạng thái ban đầu,
+render chart upstream, bỏ override `appName` của riêng checkout bằng Ansible
+Helm để tái hiện tên sai `servicename`, kiểm tra checkout lỗi rồi khôi phục và
+chạy verification. **Checkout tạm thời không hoạt động trong thí nghiệm.**
+Các lần kiểm thử dùng phiên cart mới và dữ liệu demo có sẵn trong form.
+
+Evidence nằm ngoài repo, trên master tại
+`/tmp/project01-checkout-diagnosis/<timestamp>/`. Có thể đổi thư mục và giữ
+trạng thái lỗi thêm 60 giây để chụp màn hình:
+
+```bash
+ansible-playbook playbooks/diagnose-checkout.yml \
+  -e checkout_diagnosis_root=/var/tmp/project01-checkout-evidence \
+  -e checkout_diagnosis_observation_seconds=60
+```
+
+Cửa sổ quan sát mặc định là `0`, cho phép từ `0` đến `300` giây. Khi task
+thí nghiệm lỗi, block `always` cố khôi phục release bằng values đã lưu.
+Probe sau khôi phục thử lại tối đa 30 lần, cách nhau 10 giây, để chờ frontend
+kết nối lại qua gRPC; mỗi lần thử vẫn lưu evidence riêng.
+Nếu tiến trình Ansible bị ngắt, kill hoặc master mất kết nối, phần khôi phục có thể chưa chạy;
+đưa lab về baseline bằng:
+
+```bash
+ansible-playbook playbooks/deploy.yml
+ansible-playbook playbooks/verify.yml
+```
+
+Có thể kiểm thử một đơn hàng demo riêng; thay `<NodePort>` bằng port thực tế
+và dùng private IP của lab hoặc URL loopback qua SSH tunnel:
+
+```bash
+python3 scripts/checkout-smoke.py 'http://192.168.56.11:<NodePort>' \
+  --expect success --evidence-dir ../project01-evidence/checkout-smoke
+```
+
+Probe lưu HTML và JSON cho mỗi lần thử trong thư mục `attempt-*`, giữ cả
+lần lỗi khi retry. `--expect failure` chỉ PASS khi checkout trả HTTP 500 với
+lỗi kết nối liên quan `checkoutservice`, trong khi browse/cart vẫn hoạt động
+và cart còn hàng. Báo cáo incident và screenshot cũng lưu ngoài repo; ghi rõ
+đây là tái hiện có kiểm soát của bug đã được mô tả và sửa trong baseline.
+
 ## Kiểm tra source và idempotency
 
 Sau khi cài dependency, kiểm tra local không cấu hình VM:
