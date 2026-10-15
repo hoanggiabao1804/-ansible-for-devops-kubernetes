@@ -1,0 +1,68 @@
+---
+# Only read selected resources/logs. Never export kubeconfig, Secrets or tokens.
+- name: Create the {{ checkout_evidence_stage }} evidence directory.
+  ansible.builtin.file:
+    path: "{{ checkout_run_dir }}/{{ checkout_evidence_stage }}"
+    state: directory
+    mode: '0755'
+
+- name: Collect checkout diagnostic commands for {{ checkout_evidence_stage }}.
+  ansible.builtin.command:
+    argv: "{{ item.argv }}"
+  loop:
+    - name: timestamp
+      argv: [date, -u, '+%Y-%m-%dT%H:%M:%SZ']
+    - name: nodes
+      argv: "{{ checkout_kubectl + ['get', 'nodes', '-o', 'wide'] }}"
+    - name: deployments-and-services
+      argv: "{{ checkout_kubectl + ['get', 'deployments,services', '-o', 'wide'] }}"
+    - name: pods
+      argv: "{{ checkout_kubectl + ['get', 'pods', '-o', 'wide'] }}"
+    - name: checkout-endpoints
+      argv: "{{ checkout_kubectl + ['get', 'endpointslices', '-l', 'kubernetes.io/service-name=' + checkout_resource_name, '-o', 'yaml'] }}"
+    - name: frontend-checkout-address
+      argv: "{{ checkout_kubectl + ['get', 'deployment', 'frontend', '-o', 'jsonpath={.spec.template.spec.containers[0].env[?(@.name==\"CHECKOUT_SERVICE_ADDR\")].value}'] }}"
+    - name: dns-from-email-pod
+      argv: "{{ checkout_kubectl + ['exec', 'deployment/emailservice', '--', 'python', '-c', checkout_dns_probe] }}"
+    - name: frontend-logs
+      argv: "{{ checkout_kubectl + ['logs', 'deployment/frontend', '--since=5m', '--tail=100', '--timestamps=true'] }}"
+    - name: checkout-logs
+      argv: "{{ checkout_kubectl + ['logs', 'deployment/' + checkout_resource_name, '--since=5m', '--tail=80', '--timestamps=true'] }}"
+    - name: helm-history
+      argv: ["{{ helm_binary_path }}", history, checkoutservice, --namespace, "{{ microservice_namespace }}", --kubeconfig, "{{ kubernetes_admin_conf }}", --output=json]
+    - name: helm-values
+      argv: ["{{ helm_binary_path }}", get, values, checkoutservice, --namespace, "{{ microservice_namespace }}", --kubeconfig, "{{ kubernetes_admin_conf }}", --output=json]
+  vars:
+    checkout_dns_probe: |
+      import json, socket
+      result = {}
+      for name in ('checkoutservice', 'servicename'):
+          try:
+              result[name] = {'addresses': sorted({entry[4][0] for entry in socket.getaddrinfo(name, 5050, proto=socket.IPPROTO_TCP)})}
+          except socket.gaierror as exc:
+              result[name] = {'dns_error': str(exc)}
+      print(json.dumps(result, indent=2))
+  register: checkout_diagnostics
+  loop_control:
+    label: "{{ checkout_evidence_stage }}/{{ item.name }}"
+  changed_when: false
+  # Save all command results first; the following assertion still fails the run.
+  failed_when: false
+
+- name: Save checkout diagnostic results for {{ checkout_evidence_stage }}.
+  ansible.builtin.copy:
+    content: "{{ {'command': item.cmd, 'return_code': item.rc, 'stdout': item.stdout, 'stderr': item.stderr, 'started': item.start, 'ended': item.end} | to_nice_json }}\n"
+    dest: "{{ checkout_run_dir }}/{{ checkout_evidence_stage }}/{{ item.item.name }}.json"
+    mode: '0644'
+  loop: "{{ checkout_diagnostics.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"
+
+- name: Require each diagnostic command to complete successfully.
+  ansible.builtin.assert:
+    that: item.rc == 0
+    quiet: true
+    fail_msg: "Diagnostic command {{ item.item.name }} failed; its output is saved in {{ checkout_run_dir }}/{{ checkout_evidence_stage }}."
+  loop: "{{ checkout_diagnostics.results }}"
+  loop_control:
+    label: "{{ item.item.name }}"

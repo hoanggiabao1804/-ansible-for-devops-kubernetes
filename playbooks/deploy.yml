@@ -26,13 +26,16 @@
         binary_path: "{{ helm_binary_path }}"
         state: present
 
-    - name: Clone upstream microservice Helm charts.
+    - name: Clone pristine upstream values and charts.
       ansible.builtin.git:
         repo: "{{ microservice_repo_url }}"
         dest: "{{ microservice_src }}"
         version: "{{ microservice_repo_version }}"
         update: true
         force: true
+
+    - name: Stage the microservice chart managed by this project.
+      ansible.builtin.include_tasks: tasks/stage-microservice-chart.yml
 
     # Reproduce the upstream checkout naming bug before applying our override.
     - name: Render upstream checkout chart.
@@ -59,7 +62,7 @@
     - name: Deploy Online Boutique Helm releases.
       kubernetes.core.helm:
         name: "{{ item.release }}"
-        chart_ref: "{{ microservice_src }}/{{ item.chart }}"
+        chart_ref: "{{ microservice_deploy_chart_paths[item.chart] }}"
         release_namespace: "{{ microservice_namespace }}"
         create_namespace: true
 

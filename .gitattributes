@@ -1,0 +1,2 @@
+# Keep the vendored snapshot byte-identical to the upstream Git blobs on Windows.
+charts/microservice/** text eol=lf
