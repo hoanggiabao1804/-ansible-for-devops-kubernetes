@@ -1,0 +1,62 @@
+---
+- name: Locate the microservice chart files on the Ansible controller.
+  ansible.builtin.find:
+    paths: "{{ playbook_dir }}/../charts/microservice"
+    recurse: true
+    hidden: true
+    file_type: file
+  delegate_to: localhost
+  become: false
+  vars:
+    ansible_python_interpreter: "{{ ansible_playbook_python }}"
+  register: microservice_chart_controller_files
+
+- name: List the chart files managed by this checkout.
+  ansible.builtin.set_fact:
+    microservice_chart_relative_files: >-
+      {{ microservice_chart_controller_files.files
+         | map(attribute='path')
+         | map('relpath', playbook_dir + '/../charts/microservice')
+         | sort | list }}
+
+- name: Validate the chart source and dedicated staging directory.
+  ansible.builtin.assert:
+    that:
+      - "'Chart.yaml' in microservice_chart_relative_files"
+      - "'values.yaml' in microservice_chart_relative_files"
+      - "'templates/deployment.yaml' in microservice_chart_relative_files"
+      - "'templates/service.yaml' in microservice_chart_relative_files"
+      - microservice_vendored_chart is match('^/opt/project01/charts/[A-Za-z0-9_-]+$')
+      - microservice_vendored_chart != microservice_src
+      - not microservice_vendored_chart.startswith(microservice_src + '/')
+    fail_msg: The local chart is incomplete or its managed destination is not a dedicated project chart directory.
+
+- name: Create the managed microservice chart directory.
+  ansible.builtin.file:
+    path: "{{ microservice_vendored_chart }}"
+    state: directory
+    mode: '0755'
+
+- name: Copy the microservice chart from the controller checkout.
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../charts/microservice/"
+    dest: "{{ microservice_vendored_chart }}/"
+    mode: '0644'
+    directory_mode: '0755'
+
+- name: Find previously staged chart files.
+  ansible.builtin.find:
+    paths: "{{ microservice_vendored_chart }}"
+    recurse: true
+    hidden: true
+    file_type: file
+  register: microservice_chart_staged_files
+
+- name: Remove staged files no longer present in the controller chart.
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: absent
+  loop: "{{ microservice_chart_staged_files.files }}"
+  loop_control:
+    label: "{{ item.path | relpath(microservice_vendored_chart) }}"
+  when: (item.path | relpath(microservice_vendored_chart)) not in microservice_chart_relative_files

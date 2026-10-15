@@ -46,19 +46,65 @@
       register: checkout_upstream_status
       changed_when: false
 
-    - name: Save the current checkout release values for restoration.
+    - name: Read the current checkout release and its Helm revision.
+      ansible.builtin.command:
+        argv:
+          - "{{ helm_binary_path }}"
+          - list
+          - --all
+          - --filter
+          - ^checkoutservice$
+          - --namespace
+          - "{{ microservice_namespace }}"
+          - --kubeconfig
+          - "{{ kubernetes_admin_conf }}"
+          - --output=json
+      register: checkout_original_release
+      changed_when: false
+
+    - name: Require one deployed checkout revision before taking its snapshot.
+      ansible.builtin.assert:
+        that:
+          - checkout_original_release.stdout | from_json | length == 1
+          - (checkout_original_release.stdout | from_json)[0].status == 'deployed'
+          - (checkout_original_release.stdout | from_json)[0].revision | int > 0
+        fail_msg: This experiment needs one deployed checkout release to restore by Helm revision.
+
+    - name: Remember the exact revision to restore after the experiment.
+      ansible.builtin.set_fact:
+        checkout_saved_revision: "{{ (checkout_original_release.stdout | from_json)[0].revision | int }}"
+
+    - name: Save the original checkout revision values.
       ansible.builtin.command:
         argv:
           - "{{ helm_binary_path }}"
           - get
           - values
           - checkoutservice
+          - --revision
+          - "{{ checkout_saved_revision | string }}"
           - --namespace
           - "{{ microservice_namespace }}"
           - --kubeconfig
           - "{{ kubernetes_admin_conf }}"
           - --output=json
       register: checkout_original_values
+      changed_when: false
+
+    - name: Save the original checkout revision manifest.
+      ansible.builtin.command:
+        argv:
+          - "{{ helm_binary_path }}"
+          - get
+          - manifest
+          - checkoutservice
+          - --revision
+          - "{{ checkout_saved_revision | string }}"
+          - --namespace
+          - "{{ microservice_namespace }}"
+          - --kubeconfig
+          - "{{ kubernetes_admin_conf }}"
+      register: checkout_original_manifest
       changed_when: false
 
     - name: Check that no leftover broken resources exist.
@@ -74,6 +120,7 @@
           - checkout_upstream_status.stdout | trim == ''
           - (checkout_original_values.stdout | from_json).appName == 'checkoutservice'
           - (checkout_original_values.stdout | from_json).appReplicas | int == 1
+          - checkout_original_manifest.stdout | trim | length > 0
           - checkout_existing_broken.stdout | trim == ''
         fail_msg: Deploy the pinned baseline first; this experiment expects the existing fixed checkout release and an unmodified upstream checkout.
 
@@ -102,6 +149,19 @@
         content: "{{ checkout_saved_values | to_nice_json }}\n"
         dest: "{{ checkout_run_dir }}/baseline/checkout-values.json"
         mode: '0644'
+
+    - name: Preserve the original release metadata and manifest.
+      ansible.builtin.copy:
+        content: "{{ item.content }}\n"
+        dest: "{{ checkout_run_dir }}/baseline/{{ item.name }}"
+        mode: '0644'
+      loop:
+        - name: checkout-release.json
+          content: "{{ (checkout_original_release.stdout | from_json)[0] | to_nice_json }}"
+        - name: checkout-manifest.yaml
+          content: "{{ checkout_original_manifest.stdout }}"
+      loop_control:
+        label: "{{ item.name }}"
 
     - name: Save the exact upstream files used by this run.
       ansible.builtin.copy:
@@ -152,7 +212,7 @@
 
     - name: Write the experiment context.
       ansible.builtin.copy:
-        content: "{{ {'upstream_commit': checkout_upstream_commit.stdout, 'namespace': microservice_namespace, 'url': checkout_probe_url, 'started_utc': ansible_facts['date_time']['iso8601'], 'purpose': 'Controlled reproduction of the bug already documented in the assignment and fixed by baseline'} | to_nice_json }}\n"
+        content: "{{ {'upstream_commit': checkout_upstream_commit.stdout, 'namespace': microservice_namespace, 'url': checkout_probe_url, 'original_revision': checkout_saved_revision, 'started_utc': ansible_facts['date_time']['iso8601'], 'purpose': 'Controlled reproduction of the bug already documented in the assignment and fixed by baseline'} | to_nice_json }}\n"
         dest: "{{ checkout_run_dir }}/context.json"
         mode: '0644'
 
@@ -168,7 +228,7 @@
       # This probe creates a demo order and changes its own cart session.
       changed_when: true
 
-    - name: Reproduce the failure and always restore the original release values.
+    - name: Reproduce the failure and always restore the original release revision.
       block:
         - name: Deploy checkout using the upstream values without its appName override.
           kubernetes.core.helm:
@@ -240,18 +300,72 @@
             checkout_experiment_error: "{{ ansible_failed_task.name }}: {{ ansible_failed_result.msg | default('See playbook log') }}"
 
       always:
-        - name: Restore checkout from its original release values through Ansible Helm.
-          kubernetes.core.helm:
-            name: checkoutservice
-            chart_ref: "{{ checkout_chart }}"
-            release_namespace: "{{ microservice_namespace }}"
-            values: "{{ checkout_saved_values }}"
-            reset_values: true
-            kubeconfig: "{{ kubernetes_admin_conf }}"
-            binary_path: "{{ helm_binary_path }}"
-            state: present
-            wait: true
-            timeout: 3m0s
+        # Values alone cannot restore a vendored chart's later template changes.
+        # Rollback restores the saved chart and values as a new Helm revision.
+        - name: Restore checkout from its exact original Helm revision through Ansible.
+          ansible.builtin.command:
+            argv:
+              - "{{ helm_binary_path }}"
+              - rollback
+              - checkoutservice
+              - "{{ checkout_saved_revision | string }}"
+              - --namespace
+              - "{{ microservice_namespace }}"
+              - --kubeconfig
+              - "{{ kubernetes_admin_conf }}"
+              - --wait
+              - --timeout=3m0s
+          changed_when: true
+
+        - name: Read the restored checkout values.
+          ansible.builtin.command:
+            argv:
+              - "{{ helm_binary_path }}"
+              - get
+              - values
+              - checkoutservice
+              - --namespace
+              - "{{ microservice_namespace }}"
+              - --kubeconfig
+              - "{{ kubernetes_admin_conf }}"
+              - --output=json
+          register: checkout_restored_values
+          changed_when: false
+
+        - name: Read the restored checkout manifest.
+          ansible.builtin.command:
+            argv:
+              - "{{ helm_binary_path }}"
+              - get
+              - manifest
+              - checkoutservice
+              - --namespace
+              - "{{ microservice_namespace }}"
+              - --kubeconfig
+              - "{{ kubernetes_admin_conf }}"
+          register: checkout_restored_manifest
+          changed_when: false
+
+        - name: Preserve the restored values and manifest for comparison.
+          ansible.builtin.copy:
+            content: "{{ item.content }}\n"
+            dest: "{{ checkout_run_dir }}/restored/{{ item.name }}"
+            mode: '0644'
+          loop:
+            - name: checkout-values.json
+              content: "{{ checkout_restored_values.stdout | from_json | to_nice_json }}"
+            - name: checkout-manifest.yaml
+              content: "{{ checkout_restored_manifest.stdout }}"
+          loop_control:
+            label: "{{ item.name }}"
+
+        - name: Assert restoration kept the original chart manifest and release values.
+          ansible.builtin.assert:
+            that:
+              - (checkout_restored_values.stdout | from_json) == checkout_saved_values
+              - checkout_restored_manifest.stdout == checkout_original_manifest.stdout
+            fail_msg: Checkout rollback did not restore the original values and manifest; inspect baseline and restored evidence.
+            success_msg: "Checkout values and manifest match original Helm revision {{ checkout_saved_revision }}."
 
         - name: Preserve the restored runtime state before testing checkout recovery.
           ansible.builtin.include_tasks: tasks/checkout-evidence.yml

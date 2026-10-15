@@ -102,8 +102,21 @@ Clone runtime tại `/opt/microservice-deployment`, pin commit
 import chart ở branch reliability. Không theo `main` để tránh upstream thay đổi
 baseline. Git task quản lý clone; không sửa trực tiếp clone runtime.
 
-Hai chart `chart/microservice` và `chart/redis` tạo 11 Helm releases trong
-namespace `microservice`. Các overrides nằm trong `vars/microservices.yml`:
+Mười release dùng bản chart được quản lý tại `charts/microservice/` trong repo
+này. Ansible copy chart từ controller lên `/opt/project01/charts/microservice`
+trên master và xóa các file staging đã bị bỏ khỏi source. Release `rediscart`
+vẫn dùng chart Redis của upstream. Ánh xạ `microservice_deploy_chart_paths`
+trong `vars/microservices.yml` chọn đường dẫn chart thực tế; tất cả values của
+11 release vẫn lấy từ clone upstream đã pin.
+
+Bản import đầu tiên giữ nguyên nội dung và version `0.1.0` của chart upstream.
+[Nguồn và checksum](charts/README.md) ghi tại `charts/`, bên ngoài chart để
+không thay đổi gói Helm. Các thay đổi probes/resources tiếp theo sẽ sửa chart
+trong repo và tăng version, không sửa clone `/opt/microservice-deployment`.
+Clone này còn cung cấp chart nguyên gốc để tái hiện checkout bug.
+
+Hai chart tạo 11 Helm releases trong namespace `microservice`.
+Các overrides nằm trong `vars/microservices.yml`:
 
 | Override | Phạm vi | Mục đích |
 | --- | --- | --- |
@@ -166,7 +179,9 @@ ansible-playbook playbooks/diagnose-checkout.yml \
 ```
 
 Cửa sổ quan sát mặc định là `0`, cho phép từ `0` đến `300` giây. Khi task
-thí nghiệm lỗi, block `always` cố khôi phục release bằng values đã lưu.
+thí nghiệm lỗi, block `always` cố khôi phục đúng Helm revision đã lưu bằng
+`helm rollback` qua Ansible, gồm cả chart, manifest và values. Playbook đối
+chiếu manifest/values sau rollback trước khi kiểm thử checkout phục hồi.
 Probe sau khôi phục thử lại tối đa 30 lần, cách nhau 10 giây, để chờ frontend
 kết nối lại qua gRPC; mỗi lần thử vẫn lưu evidence riêng.
 Nếu tiến trình Ansible bị ngắt, kill hoặc master mất kết nối, phần khôi phục có thể chưa chạy;
@@ -260,6 +275,8 @@ tên VM/private IP khi lab hiện tại vẫn đang chạy.
 | `site.yml` | Build → deploy → verify |
 | `playbooks/{cluster,deploy,verify,teardown}.yml` | Luồng Parts 2–5 |
 | `vars/{cluster,microservices,verify}.yml` | Cấu hình project |
+| `charts/microservice/`, `charts/UPSTREAM.json` | Chart được quản lý trong Git và nguồn import |
+| `playbooks/tasks/stage-microservice-chart.yml` | Đồng bộ chart từ controller lên master |
 
 `main.yml`, `vars/main.yml`, `inventory`, `examples/` và manifest cũ trong
 `files/` là ví dụ gốc từ sách, **không thuộc luồng Parts 1–5**. Chúng dùng IP,
