@@ -1,0 +1,27 @@
+$ kubectl get nodes -o wide
+NAME     STATUS   ROLES           AGE     VERSION    INTERNAL-IP     EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION       CONTAINER-RUNTIME
+master   Ready    control-plane   6h29m   v1.32.13   192.168.56.10   <none>        Ubuntu 22.04.5 LTS   5.15.0-198-generic   containerd://2.4.2
+node1    Ready    <none>          6h29m   v1.32.13   10.0.2.15       <none>        Ubuntu 22.04.5 LTS   5.15.0-198-generic   containerd://2.4.2
+
+$ kubectl -n microservice get pods -o wide
+NAME                                     READY   STATUS    RESTARTS   AGE     IP            NODE    NOMINATED NODE   READINESS GATES
+adservice-55cd687d88-pvq4p               1/1     Running   0          6h19m   10.244.1.10   node1   <none>           <none>
+cartservice-6767659854-tk6nm             1/1     Running   0          6h21m   10.244.1.4    node1   <none>           <none>
+checkoutservice-555977c465-w2wn6         1/1     Running   0          6h19m   10.244.1.11   node1   <none>           <none>
+currencyservice-65846d94c4-4x4rg         1/1     Running   0          6h21m   10.244.1.5    node1   <none>           <none>
+emailservice-669644b7cd-8p4ff            1/1     Running   0          6h22m   10.244.1.3    node1   <none>           <none>
+frontend-7888c5556-bvwj2                 1/1     Running   0          6h19m   10.244.1.12   node1   <none>           <none>
+paymentservice-67b49f4b57-bhzsc          1/1     Running   0          6h21m   10.244.1.6    node1   <none>           <none>
+productcatalogservice-6d85f7f999-52tzm   1/1     Running   0          6h20m   10.244.1.8    node1   <none>           <none>
+recommendationservice-6c59f9cf7f-qj98s   1/1     Running   0          6h20m   10.244.1.7    node1   <none>           <none>
+redis-cart-6ccf747cb-dzfvv               1/1     Running   0          6h22m   10.244.1.2    node1   <none>           <none>
+shippingservice-655889bf49-4wntt         1/1     Running   0          6h20m   10.244.1.9    node1   <none>           <none>
+
+$ kubectl -n microservice logs deploy/frontend --tail=3
+Error from server (NotFound): the server could not find the requested resource ( pods/log frontend-7888c5556-bvwj2)
+
+$ kubectl -n microservice exec deploy/redis-cart -- redis-cli ping
+error: Internal error occurred: unable to upgrade connection: pod does not exist
+
+$ curl http://192.168.56.11:31168/   # storefront via NodePort
+HTTP 200

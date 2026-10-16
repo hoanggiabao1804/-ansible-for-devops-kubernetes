@@ -1,0 +1,10 @@
+$ ip route get 192.168.56.1   # on master
+192.168.56.1 dev enp0s8 src 192.168.56.10 uid 0 
+    cache 
+$ ip route get 192.168.56.1   # on node1
+192.168.56.1 dev enp0s8 src 192.168.56.11 uid 0 
+    cache 
+
+$ ip route get 192.168.56.10   # on master (own IP)
+local 192.168.56.10 dev lo src 192.168.56.10 uid 0 
+    cache <local> 

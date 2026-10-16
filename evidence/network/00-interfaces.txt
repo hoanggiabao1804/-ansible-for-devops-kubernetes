@@ -1,0 +1,12 @@
+### master
+lo               UNKNOWN        127.0.0.1/8 
+enp0s3           UP             10.0.2.15/24 metric 100 
+enp0s8           UP             192.168.56.10/24 
+flannel.1        UNKNOWN        10.244.0.0/32 
+cni0             UP             10.244.0.1/24 
+### node1
+lo               UNKNOWN        127.0.0.1/8 
+enp0s3           UP             10.0.2.15/24 metric 100 
+enp0s8           UP             192.168.56.11/24 
+flannel.1        UNKNOWN        10.244.1.0/32 
+cni0             UP             10.244.1.1/24 

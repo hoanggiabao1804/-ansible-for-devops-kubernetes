@@ -1,0 +1,43 @@
+$ kubectl -n kube-flannel get ds kube-flannel-ds -o jsonpath={..args}
+["-f","/flannel","/opt/cni/bin/flannel"] ["-f","/etc/kube-flannel/cni-conf.json","/etc/cni/net.d/10-flannel.conflist"] ["--ip-masq","--kube-subnet-mgr","--iface=enp0s8"]
+
+$ kubectl -n kube-flannel logs -l app=flannel --prefix | grep "Using interface"
+Defaulted container "kube-flannel" out of: kube-flannel, install-cni-plugin (init), install-cni (init)
+Defaulted container "kube-flannel" out of: kube-flannel, install-cni-plugin (init), install-cni (init)
+[pod/kube-flannel-ds-pdt7f/kube-flannel] I1016 22:36:55.966160       1 match.go:269] Using interface with name enp0s8 and address 192.168.56.10
+[pod/kube-flannel-ds-qh8x8/kube-flannel] I1016 22:36:52.343219       1 match.go:269] Using interface with name enp0s8 and address 192.168.56.11
+
+$ kubectl get nodes -o custom-columns=NAME,FLANNEL-PUBLIC-IP
+NAME     FLANNEL-PUBLIC-IP
+master   192.168.56.10
+node1    192.168.56.11
+
+$ ip -d link show flannel.1   # on node1
+vxlan id 1 local 192.168.56.11 dev enp0s8
+
+$ kubectl get pods -A -o wide | grep coredns
+kube-system    coredns-668d6bf9bc-4z2ln                 1/1     Running   0          8h    10.244.0.3      master   <none>           <none>
+kube-system    coredns-668d6bf9bc-c2trr                 1/1     Running   0          8h    10.244.0.2      master   <none>           <none>
+
+$ kubectl exec nettest -- nslookup kubernetes.default   # pod on node1 -> CoreDNS on master
+Server:		10.96.0.10
+Address:	10.96.0.10:53
+
+** server can't find kubernetes.default: NXDOMAIN
+
+** server can't find kubernetes.default: NXDOMAIN
+
+command terminated with exit code 1
+
+$ kubectl exec nettest -- ping -c3 10.244.0.2   # pod on node1 -> CoreDNS pod on master
+PING 10.244.0.2 (10.244.0.2): 56 data bytes
+64 bytes from 10.244.0.2: seq=0 ttl=62 time=0.512 ms
+64 bytes from 10.244.0.2: seq=1 ttl=62 time=0.541 ms
+64 bytes from 10.244.0.2: seq=2 ttl=62 time=0.501 ms
+
+--- 10.244.0.2 ping statistics ---
+3 packets transmitted, 3 packets received, 0% packet loss
+round-trip min/avg/max = 0.501/0.518/0.541 ms
+
+$ curl http://192.168.56.10:31168/   # NodePort via master -> pod on node1
+HTTP 200

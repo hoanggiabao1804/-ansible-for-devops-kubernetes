@@ -1,0 +1,15 @@
+$ cat /etc/default/kubelet   # on node1
+KUBELET_EXTRA_ARGS=--node-ip=192.168.56.11
+
+$ kubectl get nodes -o wide
+NAME     STATUS   ROLES           AGE     VERSION    INTERNAL-IP     EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION       CONTAINER-RUNTIME
+master   Ready    control-plane   6h42m   v1.32.13   192.168.56.10   <none>        Ubuntu 22.04.5 LTS   5.15.0-198-generic   containerd://2.4.2
+node1    Ready    <none>          6h42m   v1.32.13   192.168.56.11   <none>        Ubuntu 22.04.5 LTS   5.15.0-198-generic   containerd://2.4.2
+
+$ kubectl -n microservice logs deploy/frontend --tail=3
+env platform is either empty or invalid
+{"http.req.id":"e93c8c2c-52e8-4bf0-8f32-c387eaa8e47e","http.req.method":"GET","http.req.path":"/","message":"ENV_PLATFORM is: local","session":"22a8b1d6-51fd-4d9d-a453-1ba9b6c2e6f0","severity":"debug","timestamp":"2026-10-16T21:41:06.785821242Z"}
+{"http.req.id":"e93c8c2c-52e8-4bf0-8f32-c387eaa8e47e","http.req.method":"GET","http.req.path":"/","http.resp.bytes":10857,"http.resp.status":200,"http.resp.took_ms":77,"message":"request complete","session":"22a8b1d6-51fd-4d9d-a453-1ba9b6c2e6f0","severity":"debug","timestamp":"2026-10-16T21:41:06.793262696Z"}
+
+$ kubectl -n microservice exec deploy/redis-cart -- redis-cli ping
+PONG
