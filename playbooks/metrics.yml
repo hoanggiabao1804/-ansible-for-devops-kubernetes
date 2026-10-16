@@ -1,0 +1,84 @@
+---
+- name: Install pinned Metrics Server for resource measurements
+  hosts: k8s_master
+  become: true
+  gather_facts: false
+  vars_files:
+    - ../vars/metrics.yml
+  tasks:
+    - name: Download the verified Metrics Server release manifest.
+      ansible.builtin.get_url:
+        url: "https://github.com/kubernetes-sigs/metrics-server/releases/download/{{ metrics_server_version }}/components.yaml"
+        dest: "/var/tmp/metrics-server-{{ metrics_server_version }}.yaml"
+        checksum: "sha256:{{ metrics_server_manifest_sha256 }}"
+        mode: '0644'
+
+    - name: Read the release manifest.
+      ansible.builtin.slurp:
+        src: "/var/tmp/metrics-server-{{ metrics_server_version }}.yaml"
+      register: metrics_server_manifest
+
+    - name: Parse the pinned objects.
+      ansible.builtin.set_fact:
+        metrics_server_objects: "{{ metrics_server_manifest.content | b64decode | from_yaml_all | list }}"
+
+    - name: Select the Metrics Server deployment.
+      ansible.builtin.set_fact:
+        metrics_server_deployment: "{{ metrics_server_objects | selectattr('kind', 'equalto', 'Deployment') | first }}"
+
+    - name: Configure kubelet certificate verification for this lab.
+      ansible.builtin.set_fact:
+        metrics_server_container: >-
+          {{ metrics_server_deployment.spec.template.spec.containers[0]
+             | combine({'args': metrics_server_deployment.spec.template.spec.containers[0].args
+                 + (['--kubelet-insecure-tls'] if metrics_server_kubelet_insecure_tls | bool else [])}) }}
+
+    - name: Assemble the desired Metrics Server objects.
+      ansible.builtin.set_fact:
+        metrics_server_desired_manifest: >-
+          {{ {'apiVersion': 'v1', 'kind': 'List', 'items':
+             ((metrics_server_objects | rejectattr('kind', 'equalto', 'Deployment') | list)
+             + [metrics_server_deployment | combine({'spec': {'template': {'spec':
+                 {'containers': [metrics_server_container]}}}}, recursive=True)])}
+             | to_nice_yaml }}
+
+    # kubectl apply can report "configured" for unchanged last-applied metadata.
+    # Compare with server-side defaulting before issuing a write.
+    - name: Check for actual Metrics Server configuration changes.
+      ansible.builtin.command:
+        argv: [kubectl, --kubeconfig, "{{ metrics_server_kubeconfig }}", diff, -f, '-']
+        stdin: "{{ metrics_server_desired_manifest }}"
+      register: metrics_server_diff
+      changed_when: false
+      failed_when: metrics_server_diff.rc not in [0, 1]
+
+    - name: Apply changed Metrics Server objects through the Kubernetes API.
+      ansible.builtin.command:
+        argv: [kubectl, --kubeconfig, "{{ metrics_server_kubeconfig }}", apply, -f, '-']
+        stdin: "{{ metrics_server_desired_manifest }}"
+      register: metrics_server_apply
+      changed_when: "' created' in metrics_server_apply.stdout or ' configured' in metrics_server_apply.stdout"
+      when: metrics_server_diff.rc == 1
+
+    - name: Show which Metrics Server objects changed.
+      ansible.builtin.debug:
+        var: metrics_server_apply.stdout_lines
+      when: metrics_server_diff.rc == 1
+
+    - name: Wait for Metrics Server rollout.
+      ansible.builtin.command:
+        argv: [kubectl, --kubeconfig, "{{ metrics_server_kubeconfig }}", -n, kube-system, rollout, status, deployment/metrics-server, --timeout=180s]
+      changed_when: false
+
+    - name: Wait for the Metrics API to report node usage.
+      ansible.builtin.command:
+        argv: [kubectl, --kubeconfig, "{{ metrics_server_kubeconfig }}", top, nodes]
+      register: metrics_server_top
+      changed_when: false
+      retries: 12
+      delay: 10
+      until: metrics_server_top.rc == 0
+
+    - name: Show measured node usage.
+      ansible.builtin.debug:
+        var: metrics_server_top.stdout_lines

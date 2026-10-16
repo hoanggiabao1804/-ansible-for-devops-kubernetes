@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "source": {
+    "repository": "https://github.com/iankisali/microservice-deployment",
+    "revision": "8ed96c8d98625c73b67c7172b6703383ea9e46e9",
+    "path": "chart/microservice"
+  },
+  "imported_on": "2026-10-15",
+  "local_path": "charts/microservice",
+  "import_method": "git -c core.autocrlf=false -c core.eol=lf archive; unchanged bytes from the pinned Git blobs",
+  "chart_version": "0.1.0",
+  "license_note": "The pinned upstream snapshot contains no LICENSE file; no license is inferred or added.",
+  "files": [
+    {
+      "path": ".helmignore",
+      "git_blob_sha1": "0e8a0eb36f4ca2c939201c0d54b5d82a1ea34778",
+      "sha256": "bb987e6a8ef45a99255d1d632812482d5f0f3255ea841520b4d90342df5fe2b3"
+    },
+    {
+      "path": "Chart.yaml",
+      "git_blob_sha1": "1be65957eafaadf208213dfdd6737467965724fd",
+      "sha256": "057602623d0e991f8f6dd5db4a022fa49acbd2ce15600099994a36248469569b"
+    },
+    {
+      "path": "templates/deployment.yaml",
+      "git_blob_sha1": "5a87243293931ad972f68ae7943b0645db76d6da",
+      "sha256": "747ca9658584ed8e47152edbddf851f5e060bad3517c3e54aa648b52d0f6b8b2"
+    },
+    {
+      "path": "templates/service.yaml",
+      "git_blob_sha1": "be46fae17ff9cea4ef9d54c2639e928f957ffb6b",
+      "sha256": "84212704bbc0e742f9cfe828504852923a0aa9e9deb2af38b1ee4c7a61bc49d6"
+    },
+    {
+      "path": "values.yaml",
+      "git_blob_sha1": "08cc8ce4ac874d60bf52650d9d19135b8cd998da",
+      "sha256": "2f4c3582c290eee946df542f5a22f63a56b392d2dad35ebd1a3aa34af681f40e"
+    }
+  ]
+}

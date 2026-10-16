@@ -1,0 +1,39 @@
+---
+- name: Ensure the reliability verifier directory exists.
+  ansible.builtin.file:
+    path: /opt/project01/tools
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Install the read-only reliability verifier.
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../scripts/verify-reliability.py"
+    dest: /opt/project01/tools/verify-reliability.py
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Verify configured resources, probes and the Pods serving the current rollout.
+  ansible.builtin.command:
+    argv:
+      - python3
+      - /opt/project01/tools/verify-reliability.py
+      - --namespace
+      - "{{ verify_namespace }}"
+      - --kubeconfig
+      - "{{ verify_kubeconfig }}"
+    stdin: >-
+      {{
+        {
+          'services': microservice_reliability,
+          'deployments': microservice_reliability_deployments
+        } | to_json
+      }}
+  register: reliability_verification
+  changed_when: false
+
+- name: Print reliability verification evidence.
+  ansible.builtin.debug:
+    msg: "{{ reliability_verification.stdout | from_json }}"

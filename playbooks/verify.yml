@@ -6,6 +6,7 @@
 
   vars_files:
     - "{{ playbook_dir }}/../vars/verify.yml"
+    - "{{ playbook_dir }}/../vars/advanced.yml"
 
   vars:
     expected_nodes:
@@ -233,6 +234,10 @@
     # ================================================================
     # 7. Print verification summary
     # ================================================================
+
+    - name: Verify measured resources and application health probes.
+      ansible.builtin.include_tasks: tasks/verify-reliability.yml
+      when: microservice_reliability_enabled | bool
 
     - name: Print verification summary.
       ansible.builtin.debug:
