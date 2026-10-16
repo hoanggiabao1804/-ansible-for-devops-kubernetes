@@ -6,6 +6,7 @@
 
   vars_files:
     - "{{ playbook_dir }}/../vars/microservices.yml"
+    - "{{ playbook_dir }}/../vars/advanced.yml"
 
   pre_tasks:
     - name: Install dependencies required for Git and Helm Ansible module.
@@ -72,6 +73,8 @@
         values: >-
           {{
             microservice_common
+            | combine(microservice_reliability.get(item.release, {})
+                if microservice_reliability_enabled | bool else {}, recursive=True)
             | combine(item.overrides | default({}), recursive=True)
           }}
 
@@ -79,6 +82,7 @@
         binary_path: "{{ helm_binary_path }}"
 
         state: present
+        reset_values: true
         wait: true
         timeout: "10m0s"
       loop: "{{ microservices }}"

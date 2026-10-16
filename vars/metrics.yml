@@ -1,0 +1,7 @@
+---
+metrics_server_version: v0.8.1
+metrics_server_manifest_sha256: 4a672c4891902573a3ff753cece5de1bf1f55dd053403dfec39df9d1636b7ff1
+metrics_server_kubeconfig: /etc/kubernetes/admin.conf
+# Private kubeadm teaching lab: kubelets use self-signed serving certificates.
+# Set false after provisioning trusted kubelet serving certificates.
+metrics_server_kubelet_insecure_tls: true

@@ -1,0 +1,116 @@
+---
+# Measurement 20261015T140139Z: 120 s idle, 300 s load, 2 workers/5 s.
+# See docs/reliability.md for measured peaks, rounding and headroom rationale.
+microservice_reliability_enabled: true
+microservice_reliability:
+  emailservice:
+    resources:
+      requests: {cpu: 25m, memory: 64Mi}
+      limits: {cpu: 200m, memory: 128Mi}
+  cartservice:
+    resources:
+      requests: {cpu: 25m, memory: 64Mi}
+      limits: {cpu: 200m, memory: 128Mi}
+  currencyservice:
+    resources:
+      requests: {cpu: 25m, memory: 32Mi}
+      limits: {cpu: 200m, memory: 128Mi}
+  paymentservice:
+    resources:
+      requests: {cpu: 25m, memory: 32Mi}
+      limits: {cpu: 200m, memory: 128Mi}
+  recommendationservice:
+    resources:
+      requests: {cpu: 25m, memory: 48Mi}
+      limits: {cpu: 200m, memory: 128Mi}
+  productcatalogservice:
+    resources:
+      requests: {cpu: 25m, memory: 32Mi}
+      limits: {cpu: 200m, memory: 128Mi}
+    startupProbe:
+      grpc: {port: 3550}
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 30
+    readinessProbe:
+      grpc: {port: 3550}
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 2
+    livenessProbe:
+      grpc: {port: 3550}
+      periodSeconds: 10
+      timeoutSeconds: 2
+      failureThreshold: 3
+  shippingservice:
+    resources:
+      requests: {cpu: 25m, memory: 32Mi}
+      limits: {cpu: 200m, memory: 128Mi}
+    startupProbe:
+      grpc: {port: 50051}
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 30
+    readinessProbe:
+      grpc: {port: 50051}
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 2
+    livenessProbe:
+      grpc: {port: 50051}
+      periodSeconds: 10
+      timeoutSeconds: 2
+      failureThreshold: 3
+  adservice:
+    resources:
+      requests: {cpu: 25m, memory: 112Mi}
+      limits: {cpu: 200m, memory: 160Mi}
+  checkoutservice:
+    resources:
+      requests: {cpu: 25m, memory: 32Mi}
+      limits: {cpu: 200m, memory: 128Mi}
+    startupProbe:
+      grpc: {port: 5050}
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 30
+    readinessProbe:
+      grpc: {port: 5050}
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 2
+    livenessProbe:
+      grpc: {port: 5050}
+      periodSeconds: 10
+      timeoutSeconds: 2
+      failureThreshold: 3
+  frontendservice:
+    resources:
+      requests: {cpu: 25m, memory: 32Mi}
+      limits: {cpu: 200m, memory: 128Mi}
+    startupProbe:
+      httpGet: {path: /_healthz, port: 8080}
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 30
+    readinessProbe:
+      httpGet: {path: /_healthz, port: 8080}
+      periodSeconds: 5
+      timeoutSeconds: 2
+      failureThreshold: 2
+    livenessProbe:
+      httpGet: {path: /_healthz, port: 8080}
+      periodSeconds: 10
+      timeoutSeconds: 2
+      failureThreshold: 3
+microservice_reliability_deployments:
+  emailservice: emailservice
+  cartservice: cartservice
+  currencyservice: currencyservice
+  paymentservice: paymentservice
+  recommendationservice: recommendationservice
+  productcatalogservice: productcatalogservice
+  shippingservice: shippingservice
+  adservice: adservice
+  checkoutservice: checkoutservice
+  frontendservice: frontend

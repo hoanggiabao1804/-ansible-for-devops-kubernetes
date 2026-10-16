@@ -111,9 +111,12 @@ trong `vars/microservices.yml` chọn đường dẫn chart thực tế; tất c
 
 Bản import đầu tiên giữ nguyên nội dung và version `0.1.0` của chart upstream.
 [Nguồn và checksum](charts/README.md) ghi tại `charts/`, bên ngoài chart để
-không thay đổi gói Helm. Các thay đổi probes/resources tiếp theo sẽ sửa chart
-trong repo và tăng version, không sửa clone `/opt/microservice-deployment`.
+không thay đổi gói Helm. Chart hiện tại là `0.2.0`, bổ sung resources và probes
+qua `vars/advanced.yml`, không sửa clone `/opt/microservice-deployment`.
 Clone này còn cung cấp chart nguyên gốc để tái hiện checkout bug.
+
+Hướng dẫn đo CPU/RAM, áp dụng requests/limits, kiểm tra probes và chạy thí
+nghiệm container restart nằm trong [Reliability](docs/reliability.md).
 
 Hai chart tạo 11 Helm releases trong namespace `microservice`.
 Các overrides nằm trong `vars/microservices.yml`:

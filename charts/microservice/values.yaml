@@ -11,3 +11,10 @@ containerEnvVars:
 
 servicePort: 8080
 serviceType: ClusterIP
+
+# Kubernetes container mappings, configured per service by the project.
+# Empty mappings omit the corresponding fields from the rendered Deployment.
+resources: {}
+startupProbe: {}
+readinessProbe: {}
+livenessProbe: {}
