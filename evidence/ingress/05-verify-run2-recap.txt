@@ -1,0 +1,15 @@
+ok: [master] => {
+    "msg": [
+        "Kubernetes nodes: PASS",
+        "11 Online Boutique deployments: PASS",
+        "checkoutservice naming: PASS",
+        "frontend ClusterIP: PASS",
+        "Ingress controller and frontend Ingress: PASS",
+        "Hostname routing (200 known / 404 unknown): PASS",
+        "Storefront URL: http://boutique.local:30080/"
+    ]
+}
+
+PLAY RECAP *********************************************************************
+master                     : ok=23   changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+

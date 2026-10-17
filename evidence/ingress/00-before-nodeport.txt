@@ -1,0 +1,9 @@
+$ kubectl -n microservice get svc frontend
+NAME       TYPE       CLUSTER-IP     EXTERNAL-IP   PORT(S)        AGE
+frontend   NodePort   10.105.1.139   <none>        80:32608/TCP   9h
+
+$ kubectl get ns ingress-nginx
+Error from server (NotFound): namespaces "ingress-nginx" not found
+
+$ curl http://192.168.56.11:32608/   # storefront via frontend NodePort
+HTTP 200

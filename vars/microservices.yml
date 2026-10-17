@@ -62,4 +62,4 @@ microservices:
     chart: chart/microservice
     values_file: values/frontend-values.yaml
     overrides:
-      serviceType: NodePort
+      serviceType: ClusterIP

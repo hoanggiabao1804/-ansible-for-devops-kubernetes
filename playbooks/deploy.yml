@@ -124,19 +124,20 @@
       ansible.builtin.debug:
         var: boutique_services.stdout_lines
 
-    - name: Get frontend NodePort.
+    # frontend is ClusterIP; playbooks/ingress.yml publishes the storefront.
+    - name: Get frontend Service type.
       ansible.builtin.command:
         cmd: >-
           kubectl
           --kubeconfig {{ kubernetes_admin_conf }}
           --namespace {{ microservice_namespace }}
           get service frontend
-          -o jsonpath='{.spec.ports[0].nodePort}'
-      register: frontend_node_port
+          -o jsonpath='{.spec.type}'
+      register: frontend_service_type
       changed_when: false
 
-    - name: Print storefront URL.
+    - name: Print frontend exposure.
       ansible.builtin.debug:
         msg: >-
-          Storefront URL:
-          http://{{ hostvars[groups['k8s_nodes'][0]].ansible_host }}:{{ frontend_node_port.stdout }}/
+          frontend Service type: {{ frontend_service_type.stdout }}.
+          The storefront is published by playbooks/ingress.yml.
