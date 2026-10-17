@@ -29,6 +29,11 @@ Vagrant.configure("2") do |config|
     }
   ]
 
+  # Operations lab: PROJECT01_SECOND_WORKER=1 vagrant up
+  if ENV.fetch("PROJECT01_SECOND_WORKER", "0") == "1"
+    machines << {name: "node2", ip: "192.168.56.12", cpus: 2, memory: 4096}
+  end
+
   machines.each do |machine|
     config.vm.define machine[:name] do |node|
       node.vm.hostname = machine[:name]

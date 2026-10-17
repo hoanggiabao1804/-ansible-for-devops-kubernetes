@@ -1,0 +1,6 @@
+---
+- name: Apply declarative replicas and PDB through Helm
+  ansible.builtin.import_playbook: deploy.yml
+
+- name: Verify the scaled application and Ingress
+  ansible.builtin.import_playbook: verify.yml

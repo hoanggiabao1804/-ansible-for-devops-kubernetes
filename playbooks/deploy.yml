@@ -6,8 +6,18 @@
 
   vars_files:
     - "{{ playbook_dir }}/../vars/microservices.yml"
+    - "{{ playbook_dir }}/../vars/advanced.yml"
+    - "{{ playbook_dir }}/../vars/operations.yml"
 
   pre_tasks:
+    - name: Validate the frontend replica and disruption budget settings.
+      ansible.builtin.assert:
+        that:
+          - operations_frontend_replicas | int >= 1
+          - operations_frontend_min_available | int >= 1
+          - operations_frontend_min_available | int <= operations_frontend_replicas | int
+          - groups['k8s_nodes'] | length >= 1
+
     - name: Install dependencies required for Git and Helm Ansible module.
       ansible.builtin.apt:
         name:
@@ -26,13 +36,16 @@
         binary_path: "{{ helm_binary_path }}"
         state: present
 
-    - name: Clone upstream microservice Helm charts.
+    - name: Clone pristine upstream values and charts.
       ansible.builtin.git:
         repo: "{{ microservice_repo_url }}"
         dest: "{{ microservice_src }}"
         version: "{{ microservice_repo_version }}"
         update: true
         force: true
+
+    - name: Stage the microservice chart managed by this project.
+      ansible.builtin.include_tasks: tasks/stage-microservice-chart.yml
 
     # Reproduce the upstream checkout naming bug before applying our override.
     - name: Render upstream checkout chart.
@@ -59,7 +72,7 @@
     - name: Deploy Online Boutique Helm releases.
       kubernetes.core.helm:
         name: "{{ item.release }}"
-        chart_ref: "{{ microservice_src }}/{{ item.chart }}"
+        chart_ref: "{{ microservice_deploy_chart_paths[item.chart] }}"
         release_namespace: "{{ microservice_namespace }}"
         create_namespace: true
 
@@ -69,13 +82,20 @@
         values: >-
           {{
             microservice_common
+            | combine(microservice_reliability.get(item.release, {})
+                if microservice_reliability_enabled | bool else {}, recursive=True)
             | combine(item.overrides | default({}), recursive=True)
+            | combine({'appReplicas': operations_frontend_replicas | int,
+                       'affinity': operations_frontend_affinity,
+                       'podDisruptionBudget': {'minAvailable': operations_frontend_min_available | int}}
+                      if item.release == 'frontendservice' else {}, recursive=True)
           }}
 
         kubeconfig: "{{ kubernetes_admin_conf }}"
         binary_path: "{{ helm_binary_path }}"
 
         state: present
+        reset_values: true
         wait: true
         timeout: "10m0s"
       loop: "{{ microservices }}"
@@ -124,19 +144,20 @@
       ansible.builtin.debug:
         var: boutique_services.stdout_lines
 
-    - name: Get frontend NodePort.
+    # frontend is ClusterIP; playbooks/ingress.yml publishes the storefront.
+    - name: Get frontend Service type.
       ansible.builtin.command:
         cmd: >-
           kubectl
           --kubeconfig {{ kubernetes_admin_conf }}
           --namespace {{ microservice_namespace }}
           get service frontend
-          -o jsonpath='{.spec.ports[0].nodePort}'
-      register: frontend_node_port
+          -o jsonpath='{.spec.type}'
+      register: frontend_service_type
       changed_when: false
 
-    - name: Print storefront URL.
+    - name: Print frontend exposure.
       ansible.builtin.debug:
         msg: >-
-          Storefront URL:
-          http://{{ hostvars[groups['k8s_nodes'][0]].ansible_host }}:{{ frontend_node_port.stdout }}/
+          frontend Service type: {{ frontend_service_type.stdout }}.
+          The storefront is published by playbooks/ingress.yml.

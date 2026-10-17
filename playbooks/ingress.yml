@@ -1,0 +1,73 @@
+---
+- name: Install Ingress controller and route the storefront by hostname
+  hosts: k8s_master
+  become: true
+  gather_facts: false
+
+  vars_files:
+    - "{{ playbook_dir }}/../vars/cluster.yml"
+    - "{{ playbook_dir }}/../vars/microservices.yml"
+
+  vars:
+    frontend_ingress_manifest: /opt/project01/frontend-ingress.yml
+
+  tasks:
+    - name: Add ingress-nginx Helm repository.
+      kubernetes.core.helm_repository:
+        name: ingress-nginx
+        repo_url: "{{ ingress_chart_repo_url }}"
+        binary_path: "{{ helm_binary_path }}"
+
+    # Bare-metal kubeadm has no cloud load balancer, so the controller is
+    # published as a NodePort with fixed ports.
+    - name: Install ingress-nginx controller.
+      kubernetes.core.helm:
+        name: "{{ ingress_release }}"
+        chart_ref: ingress-nginx/ingress-nginx
+        chart_version: "{{ ingress_chart_version }}"
+        release_namespace: "{{ ingress_namespace }}"
+        create_namespace: true
+        kubeconfig: "{{ kubernetes_admin_conf }}"
+        binary_path: "{{ helm_binary_path }}"
+        state: present
+        # The admission webhook must be ready before the Ingress is created.
+        wait: true
+        timeout: "10m0s"
+        values:
+          controller:
+            ingressClassResource:
+              name: "{{ ingress_class_name }}"
+            ingressClass: "{{ ingress_class_name }}"
+            service:
+              type: NodePort
+              nodePorts:
+                http: "{{ ingress_http_nodeport }}"
+                https: "{{ ingress_https_nodeport }}"
+
+    - name: Ensure manifest directory exists.
+      ansible.builtin.file:
+        path: "{{ frontend_ingress_manifest | dirname }}"
+        state: directory
+        mode: "0755"
+
+    - name: Render frontend Ingress manifest.
+      ansible.builtin.template:
+        src: "{{ playbook_dir }}/../templates/frontend-ingress.yml.j2"
+        dest: "{{ frontend_ingress_manifest }}"
+        mode: "0644"
+
+    - name: Apply frontend Ingress.
+      ansible.builtin.command:
+        cmd: >-
+          kubectl
+          --kubeconfig {{ kubernetes_admin_conf }}
+          apply -f {{ frontend_ingress_manifest }}
+      register: frontend_ingress_apply
+      changed_when: "'unchanged' not in frontend_ingress_apply.stdout"
+
+    - name: Print storefront URL.
+      ansible.builtin.debug:
+        msg: >-
+          Storefront URL: http://{{ ingress_hostname }}:{{ ingress_http_nodeport }}/
+          (map {{ ingress_hostname }} to
+          {{ hostvars[groups['k8s_nodes'][0]].ansible_host }} in /etc/hosts)

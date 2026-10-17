@@ -2,10 +2,15 @@
 microservice_namespace: microservice
 
 microservice_repo_url: "https://github.com/iankisali/microservice-deployment.git"
-# Same upstream snapshot recorded by the later chart import; keep runtime cloning
-# for Part 3, with all project changes expressed through values overrides.
+# Retain the pristine snapshot for release values, Redis and bug reproduction.
 microservice_repo_version: "8ed96c8d98625c73b67c7172b6703383ea9e46e9"
 microservice_src: "/opt/microservice-deployment"
+
+# Ansible stages the chart managed in this repository outside the upstream clone.
+microservice_vendored_chart: "/opt/project01/charts/microservice"
+microservice_deploy_chart_paths:
+  chart/microservice: "{{ microservice_vendored_chart }}"
+  chart/redis: "{{ microservice_src }}/chart/redis"
 
 kubernetes_admin_conf: "/etc/kubernetes/admin.conf"
 helm_binary_path: "/usr/local/bin/helm"
@@ -62,4 +67,4 @@ microservices:
     chart: chart/microservice
     values_file: values/frontend-values.yaml
     overrides:
-      serviceType: NodePort
+      serviceType: ClusterIP

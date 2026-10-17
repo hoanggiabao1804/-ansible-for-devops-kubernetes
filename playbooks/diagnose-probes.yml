@@ -1,0 +1,129 @@
+---
+# Explicit lab experiment; intentionally excluded from site.yml.
+# Supply probe_worker_key as an absolute path ON THE MASTER, where this runs.
+- name: Demonstrate readiness removal and liveness container recovery
+  hosts: k8s_master
+  become: true
+  gather_facts: true
+
+  vars_files:
+    - "{{ playbook_dir }}/../vars/microservices.yml"
+    - "{{ playbook_dir }}/../vars/cluster.yml"
+    - "{{ playbook_dir }}/../vars/access.yml"
+
+  vars:
+    probe_diagnosis_root: /var/tmp/project01-probes
+    probe_timeout_seconds: 180
+    probe_worker_node: "{{ groups['k8s_nodes'][0] }}"
+    probe_worker_host: "{{ hostvars[probe_worker_node].ansible_host }}"
+    probe_worker_user: "{{ hostvars[probe_worker_node].ansible_user | default('vagrant') }}"
+    probe_worker_known_hosts: /root/.ssh/known_hosts
+    probe_runtime_endpoint: unix:///run/containerd/containerd.sock
+    probe_kubectl: [kubectl, --kubeconfig, "{{ kubernetes_admin_conf }}", --namespace, "{{ microservice_namespace }}", --request-timeout=30s]
+
+  pre_tasks:
+    - name: Validate the explicit lab experiment settings.
+      ansible.builtin.assert:
+        that:
+          - not ansible_check_mode
+          - groups['k8s_master'] | length == 1
+          - groups['k8s_nodes'] | length >= 1
+          - probe_diagnosis_root.startswith('/')
+          - probe_worker_key is defined
+          - probe_worker_key | default('') is match('^/')
+          - probe_worker_known_hosts.startswith('/')
+          - probe_timeout_seconds | int >= 30
+          - probe_timeout_seconds | int <= 300
+        fail_msg: Supply an absolute master-side probe_worker_key and verified probe_worker_known_hosts; this experiment temporarily stops checkout and does not support --check.
+
+  tasks:
+    - name: Choose an evidence directory for this run.
+      ansible.builtin.set_fact:
+        probe_run_dir: "{{ probe_diagnosis_root }}/{{ ansible_facts['date_time']['iso8601_basic_short'] }}"
+
+    - name: Create the evidence directory outside the repository.
+      ansible.builtin.file:
+        path: "{{ probe_run_dir }}"
+        state: directory
+        mode: '0755'
+
+    - name: Install the experiment and existing checkout smoke test.
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../scripts/{{ item }}"
+        dest: "{{ probe_run_dir }}/{{ item }}"
+        mode: '0755'
+      loop: [probe-recovery.py, checkout-smoke.py]
+
+    - name: Use the shared Ingress endpoint for checkout tests.
+      ansible.builtin.set_fact:
+        probe_frontend_url: "{{ storefront_endpoint }}"
+
+    - name: Prove checkout works before interrupting its process.
+      ansible.builtin.command:
+        argv: [python3, "{{ probe_run_dir }}/checkout-smoke.py", "{{ probe_frontend_url }}", --host-header, "{{ storefront_host_header }}", --expect, success, --evidence-dir, "{{ probe_run_dir }}/before-http"]
+      changed_when: true
+
+    - name: Discover the worker actually running checkout.
+      ansible.builtin.command:
+        argv: "{{ probe_kubectl + ['get', 'pods', '-l', 'app=checkoutservice', '-o', 'json'] }}"
+      register: probe_checkout_pods
+      changed_when: false
+
+    - name: Require a single checkout Pod on an inventory worker.
+      ansible.builtin.assert:
+        that:
+          - (probe_checkout_pods.stdout | from_json)['items'] | length == 1
+          - (probe_checkout_pods.stdout | from_json)['items'][0].spec.nodeName in groups['k8s_nodes']
+
+    - name: Select checkout's current worker for the fault experiment.
+      ansible.builtin.set_fact:
+        probe_worker_node: "{{ (probe_checkout_pods.stdout | from_json)['items'][0].spec.nodeName }}"
+
+    - name: Stop only the checkout process and observe kubelet recovery.
+      ansible.builtin.command:
+        argv:
+          - python3
+          - "{{ probe_run_dir }}/probe-recovery.py"
+          - --kubeconfig
+          - "{{ kubernetes_admin_conf }}"
+          - --namespace
+          - "{{ microservice_namespace }}"
+          - --evidence-dir
+          - "{{ probe_run_dir }}/recovery"
+          - --worker-node
+          - "{{ probe_worker_node }}"
+          - --worker-host
+          - "{{ probe_worker_host }}"
+          - --worker-user
+          - "{{ probe_worker_user }}"
+          - --worker-key
+          - "{{ probe_worker_key }}"
+          - --worker-known-hosts
+          - "{{ probe_worker_known_hosts }}"
+          - --runtime-endpoint
+          - "{{ probe_runtime_endpoint }}"
+          - --timeout-seconds
+          - "{{ probe_timeout_seconds | string }}"
+      register: probe_recovery
+      changed_when: true
+      # Always attempt the end-to-end recovery test, even if evidence is incomplete.
+      failed_when: false
+
+    - name: Prove checkout recovers after the container restart.
+      ansible.builtin.command:
+        argv: [python3, "{{ probe_run_dir }}/checkout-smoke.py", "{{ probe_frontend_url }}", --host-header, "{{ storefront_host_header }}", --expect, success, --evidence-dir, "{{ probe_run_dir }}/after-http"]
+      register: probe_checkout_recovery
+      changed_when: true
+      # The pinned frontend can retain a gRPC reconnect backoff after the outage.
+      retries: 30
+      delay: 10
+      until: probe_checkout_recovery.rc == 0
+
+    - name: Require complete readiness and liveness recovery evidence.
+      ansible.builtin.assert:
+        that: probe_recovery.rc == 0
+        fail_msg: "Probe experiment did not pass. Inspect {{ probe_run_dir }}/recovery/recovery-result.json and the playbook output."
+        success_msg: "Same Pod recovered through kubelet liveness restart; checkout succeeded. Evidence: {{ probe_run_dir }}"
+
+- name: Verify the application after the probe experiment
+  ansible.builtin.import_playbook: verify.yml

@@ -5,5 +5,11 @@
 - name: Deploy Online Boutique
   ansible.builtin.import_playbook: playbooks/deploy.yml
 
+- name: Enable resource measurements
+  ansible.builtin.import_playbook: playbooks/metrics.yml
+
+- name: Publish storefront through Ingress
+  ansible.builtin.import_playbook: playbooks/ingress.yml
+
 - name: Verify cluster and application
   ansible.builtin.import_playbook: playbooks/verify.yml

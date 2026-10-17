@@ -1,0 +1,31 @@
+---
+# One replica remains a supported low-memory configuration. Scaling is explicit
+# through this variable, never kubectl scale (Helm is the source of truth).
+operations_frontend_replicas: 2
+operations_frontend_min_available: 1
+operations_drain_node: "{{ groups['k8s_nodes'][-1] }}"
+operations_drain_scope: all
+# Full drain of the lab's Redis may discard emptyDir cart data. Opt in explicitly.
+operations_drain_delete_emptydir_data: false
+operations_drain_timeout_seconds: 300
+operations_evidence_root: /var/tmp/project01-operations
+operations_frontend_affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      # Node field selectors accept exactly one name per requirement.
+      # Separate terms are ORed: node1 OR node2, not both in one values list.
+      nodeSelectorTerms: >-
+        {%- set ns = namespace(terms=[]) -%}
+        {%- for node in groups['k8s_nodes'] -%}
+        {%- set ns.terms = ns.terms + [{'matchFields':
+          [{'key': 'metadata.name', 'operator': 'In', 'values': [node]}]}] -%}
+        {%- endfor -%}
+        {{ ns.terms }}
+  podAntiAffinity:
+    # Preferred, not required: replacement must fit on the surviving worker.
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchLabels: {app: frontend}
+          topologyKey: kubernetes.io/hostname

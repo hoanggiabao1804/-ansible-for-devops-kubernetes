@@ -1,3 +1,13 @@
+# Integrated operations branch
+
+This branch combines Ingress, vendored probes/resources, scaling and PDBs.
+**Start with [docs/operations.md](docs/operations.md)** for the current three-node
+lab, hostname-based smoke tests, explicit drain experiment and idempotency checks.
+The historical Part 1–5 and diagnosis notes below describe the baseline path;
+frontend is now ClusterIP, accessed through `http://boutique.local:30080`.
+No live results are claimed for the new operations implementation until its
+acceptance commands have been run on the target lab.
+
 # Project 01 — Part 1–5
 
 Triển khai Kubernetes hai node và Online Boutique bằng Vagrant, Ansible và Helm.
@@ -102,8 +112,24 @@ Clone runtime tại `/opt/microservice-deployment`, pin commit
 import chart ở branch reliability. Không theo `main` để tránh upstream thay đổi
 baseline. Git task quản lý clone; không sửa trực tiếp clone runtime.
 
-Hai chart `chart/microservice` và `chart/redis` tạo 11 Helm releases trong
-namespace `microservice`. Các overrides nằm trong `vars/microservices.yml`:
+Mười release dùng bản chart được quản lý tại `charts/microservice/` trong repo
+này. Ansible copy chart từ controller lên `/opt/project01/charts/microservice`
+trên master và xóa các file staging đã bị bỏ khỏi source. Release `rediscart`
+vẫn dùng chart Redis của upstream. Ánh xạ `microservice_deploy_chart_paths`
+trong `vars/microservices.yml` chọn đường dẫn chart thực tế; tất cả values của
+11 release vẫn lấy từ clone upstream đã pin.
+
+Bản import đầu tiên giữ nguyên nội dung và version `0.1.0` của chart upstream.
+[Nguồn và checksum](charts/README.md) ghi tại `charts/`, bên ngoài chart để
+không thay đổi gói Helm. Chart hiện tại là `0.2.0`, bổ sung resources và probes
+qua `vars/advanced.yml`, không sửa clone `/opt/microservice-deployment`.
+Clone này còn cung cấp chart nguyên gốc để tái hiện checkout bug.
+
+Hướng dẫn đo CPU/RAM, áp dụng requests/limits, kiểm tra probes và chạy thí
+nghiệm container restart nằm trong [Reliability](docs/reliability.md).
+
+Hai chart tạo 11 Helm releases trong namespace `microservice`.
+Các overrides nằm trong `vars/microservices.yml`:
 
 | Override | Phạm vi | Mục đích |
 | --- | --- | --- |
@@ -123,6 +149,7 @@ không hardcode port của lần deploy trước.
 ## Part 4 — Verify và thử ứng dụng
 
 ```bash
+ansible-playbook playbooks/ingress.yml
 ansible-playbook playbooks/verify.yml
 ```
 
@@ -140,6 +167,59 @@ Có thể chạy Parts 2–4 bằng entry point chung sau khi tạo VM:
 ```bash
 ansible-playbook site.yml
 ```
+
+## Checkout Bug Diagnosis — nhiệm vụ đầu của Tuân
+
+Sau khi baseline hoạt động, chạy từ thư mục repo với inventory mặc định:
+
+```bash
+ansible-playbook playbooks/diagnose-checkout.yml
+```
+
+Playbook riêng này không nằm trong `site.yml`. Nó lưu trạng thái ban đầu,
+render chart upstream, bỏ override `appName` của riêng checkout bằng Ansible
+Helm để tái hiện tên sai `servicename`, kiểm tra checkout lỗi rồi khôi phục và
+chạy verification. **Checkout tạm thời không hoạt động trong thí nghiệm.**
+Các lần kiểm thử dùng phiên cart mới và dữ liệu demo có sẵn trong form.
+
+Evidence nằm ngoài repo, trên master tại
+`/tmp/project01-checkout-diagnosis/<timestamp>/`. Có thể đổi thư mục và giữ
+trạng thái lỗi thêm 60 giây để chụp màn hình:
+
+```bash
+ansible-playbook playbooks/diagnose-checkout.yml \
+  -e checkout_diagnosis_root=/var/tmp/project01-checkout-evidence \
+  -e checkout_diagnosis_observation_seconds=60
+```
+
+Cửa sổ quan sát mặc định là `0`, cho phép từ `0` đến `300` giây. Khi task
+thí nghiệm lỗi, block `always` cố khôi phục đúng Helm revision đã lưu bằng
+`helm rollback` qua Ansible, gồm cả chart, manifest và values. Playbook đối
+chiếu manifest/values sau rollback trước khi kiểm thử checkout phục hồi.
+Probe sau khôi phục thử lại tối đa 30 lần, cách nhau 10 giây, để chờ frontend
+kết nối lại qua gRPC; mỗi lần thử vẫn lưu evidence riêng.
+Nếu tiến trình Ansible bị ngắt, kill hoặc master mất kết nối, phần khôi phục có thể chưa chạy;
+đưa lab về baseline bằng:
+
+```bash
+ansible-playbook playbooks/deploy.yml
+ansible-playbook playbooks/verify.yml
+```
+
+Có thể kiểm thử một đơn hàng demo riêng; thay `<NodePort>` bằng port thực tế
+và dùng private IP của lab hoặc URL loopback qua SSH tunnel:
+
+```bash
+python3 scripts/checkout-smoke.py 'http://192.168.56.11:30080' \
+  --host-header boutique.local \
+  --expect success --evidence-dir ../project01-evidence/checkout-smoke
+```
+
+Probe lưu HTML và JSON cho mỗi lần thử trong thư mục `attempt-*`, giữ cả
+lần lỗi khi retry. `--expect failure` chỉ PASS khi checkout trả HTTP 500 với
+lỗi kết nối liên quan `checkoutservice`, trong khi browse/cart vẫn hoạt động
+và cart còn hàng. Báo cáo incident và screenshot cũng lưu ngoài repo; ghi rõ
+đây là tái hiện có kiểm soát của bug đã được mô tả và sửa trong baseline.
 
 ## Kiểm tra source và idempotency
 
@@ -210,6 +290,8 @@ tên VM/private IP khi lab hiện tại vẫn đang chạy.
 | `site.yml` | Build → deploy → verify |
 | `playbooks/{cluster,deploy,verify,teardown}.yml` | Luồng Parts 2–5 |
 | `vars/{cluster,microservices,verify}.yml` | Cấu hình project |
+| `charts/microservice/`, `charts/UPSTREAM.json` | Chart được quản lý trong Git và nguồn import |
+| `playbooks/tasks/stage-microservice-chart.yml` | Đồng bộ chart từ controller lên master |
 
 `main.yml`, `vars/main.yml`, `inventory`, `examples/` và manifest cũ trong
 `files/` là ví dụ gốc từ sách, **không thuộc luồng Parts 1–5**. Chúng dùng IP,
