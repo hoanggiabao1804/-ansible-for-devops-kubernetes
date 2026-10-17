@@ -1,0 +1,321 @@
+
+PLAY [Prepare Kubernetes hosts and build the cluster] **************************
+
+TASK [Gathering Facts] *********************************************************
+ok: [master]
+ok: [node1]
+
+TASK [Disable swap immediately.] ***********************************************
+skipping: [master]
+skipping: [node1]
+
+TASK [Disable swap permanently in fstab.] **************************************
+ok: [master]
+ok: [node1]
+
+TASK [Persist Kubernetes kernel modules.] **************************************
+ok: [node1]
+ok: [master]
+
+TASK [Load overlay kernel module.] *********************************************
+ok: [master]
+ok: [node1]
+
+TASK [Load br_netfilter kernel module.] ****************************************
+ok: [master]
+ok: [node1]
+
+TASK [Configure Kubernetes networking sysctl values.] **************************
+ok: [master]
+ok: [node1]
+
+TASK [Download pinned Flannel manifest.] ***************************************
+skipping: [node1]
+ok: [master]
+
+TASK [Force Flannel to use the Vagrant private interface.] *********************
+skipping: [node1]
+ok: [master]
+
+TASK [Verify patched Flannel interface.] ***************************************
+skipping: [node1]
+ok: [master]
+
+TASK [geerlingguy.containerd : include_tasks] **********************************
+skipping: [master]
+skipping: [node1]
+
+TASK [geerlingguy.containerd : include_tasks] **********************************
+included: /home/quoc-thinh/Documents/HK1_2026-2027/Advanced-DevOps/Project01/ansible-for-devops-kubernetes/roles/geerlingguy.containerd/tasks/setup-Debian.yml for master, node1
+
+TASK [geerlingguy.containerd : Ensure dependencies are installed.] *************
+ok: [node1]
+ok: [master]
+
+TASK [geerlingguy.containerd : Add Docker repository.] *************************
+ok: [node1]
+ok: [master]
+
+TASK [geerlingguy.containerd : Update Apt cache if repositories have changed] ***
+skipping: [master]
+skipping: [node1]
+
+TASK [geerlingguy.containerd : Ensure containerd is installed.] ****************
+ok: [master]
+ok: [node1]
+
+TASK [geerlingguy.containerd : Ensure containerd is started and enabled at boot.] ***
+ok: [master]
+ok: [node1]
+
+TASK [geerlingguy.containerd : Ensure containerd config directory exists.] *****
+ok: [master]
+ok: [node1]
+
+TASK [geerlingguy.containerd : Get defaults from containerd.] ******************
+ok: [master]
+ok: [node1]
+
+TASK [geerlingguy.containerd : Prepare containerd/config.toml from default config] ***
+ok: [node1]
+ok: [master]
+
+TASK [geerlingguy.containerd : Set Cgroup driver to systemd] *******************
+ok: [node1]
+ok: [master]
+
+TASK [geerlingguy.containerd : Make sure  SystemdCgroup = false is not set] ****
+ok: [master]
+ok: [node1]
+
+TASK [geerlingguy.containerd : Copy config.toml to /etc/containerd] ************
+ok: [master]
+ok: [node1]
+
+TASK [geerlingguy.containerd : Cleanup temporary file] *************************
+ok: [master]
+ok: [node1]
+
+TASK [geerlingguy.containerd : Ensure containerd is restarted immediately if necessary.] ***
+
+TASK [geerlingguy.containerd : Ensure containerd is restarted immediately if necessary.] ***
+
+TASK [geerlingguy.kubernetes : Include OS-specific variables.] *****************
+ok: [master]
+ok: [node1]
+
+TASK [geerlingguy.kubernetes : include_tasks] **********************************
+skipping: [master]
+skipping: [node1]
+
+TASK [geerlingguy.kubernetes : include_tasks] **********************************
+included: /home/quoc-thinh/Documents/HK1_2026-2027/Advanced-DevOps/Project01/ansible-for-devops-kubernetes/roles/geerlingguy.kubernetes/tasks/setup-Debian.yml for master, node1
+
+TASK [geerlingguy.kubernetes : Ensure dependencies are installed.] *************
+ok: [node1]
+ok: [master]
+
+TASK [geerlingguy.kubernetes : Add Kubernetes repository.] *********************
+ok: [master]
+ok: [node1]
+
+TASK [geerlingguy.kubernetes : Update Apt cache.] ******************************
+skipping: [master]
+skipping: [node1]
+
+TASK [geerlingguy.kubernetes : Add Kubernetes apt preferences file to pin a version.] ***
+ok: [master]
+ok: [node1]
+
+TASK [geerlingguy.kubernetes : Install Kubernetes packages.] *******************
+ok: [node1] => (item={'name': 'kubelet', 'state': 'present'})
+ok: [master] => (item={'name': 'kubelet', 'state': 'present'})
+ok: [master] => (item={'name': 'kubectl', 'state': 'present'})
+ok: [node1] => (item={'name': 'kubectl', 'state': 'present'})
+ok: [master] => (item={'name': 'kubeadm', 'state': 'present'})
+ok: [node1] => (item={'name': 'kubeadm', 'state': 'present'})
+ok: [master] => (item={'name': 'kubernetes-cni', 'state': 'present'})
+ok: [node1] => (item={'name': 'kubernetes-cni', 'state': 'present'})
+
+TASK [geerlingguy.kubernetes : include_tasks] **********************************
+[WARNING]: Collection community.general does not support Ansible version 2.16.3
+included: /home/quoc-thinh/Documents/HK1_2026-2027/Advanced-DevOps/Project01/ansible-for-devops-kubernetes/roles/geerlingguy.kubernetes/tasks/sysctl-setup.yml for master, node1
+
+TASK [geerlingguy.kubernetes : Ensure procps is installed.] ********************
+ok: [node1]
+ok: [master]
+
+TASK [geerlingguy.kubernetes : Ensure module br_netfilter is loaded] ***********
+ok: [node1]
+ok: [master]
+
+TASK [geerlingguy.kubernetes : Let iptables see bridged traffic.] **************
+ok: [master] => (item=net.bridge.bridge-nf-call-iptables)
+ok: [node1] => (item=net.bridge.bridge-nf-call-iptables)
+ok: [master] => (item=net.bridge.bridge-nf-call-ip6tables)
+ok: [node1] => (item=net.bridge.bridge-nf-call-ip6tables)
+
+TASK [geerlingguy.kubernetes : include_tasks] **********************************
+included: /home/quoc-thinh/Documents/HK1_2026-2027/Advanced-DevOps/Project01/ansible-for-devops-kubernetes/roles/geerlingguy.kubernetes/tasks/kubelet-setup.yml for master, node1
+
+TASK [geerlingguy.kubernetes : Check for existence of kubelet environment file. (deprecated)] ***
+ok: [master]
+ok: [node1]
+
+TASK [geerlingguy.kubernetes : Set facts for KUBELET_EXTRA_ARGS task if environment file exists. (deprecated)] ***
+ok: [master]
+ok: [node1]
+
+TASK [geerlingguy.kubernetes : Set facts for KUBELET_EXTRA_ARGS task if environment file doesn't exist. (deprecated)] ***
+skipping: [master]
+skipping: [node1]
+
+TASK [geerlingguy.kubernetes : Configure KUBELET_EXTRA_ARGS. (deprecated)] *****
+ok: [master]
+ok: [node1]
+
+TASK [geerlingguy.kubernetes : Reload systemd unit if args were changed. (deprecated)] ***
+skipping: [master]
+skipping: [node1]
+
+TASK [geerlingguy.kubernetes : Ensure kubelet is started and enabled at boot.] ***
+ok: [master]
+ok: [node1]
+
+TASK [geerlingguy.kubernetes : Check if Kubernetes has already been initialized.] ***
+ok: [node1]
+ok: [master]
+
+TASK [geerlingguy.kubernetes : include_tasks] **********************************
+skipping: [node1]
+included: /home/quoc-thinh/Documents/HK1_2026-2027/Advanced-DevOps/Project01/ansible-for-devops-kubernetes/roles/geerlingguy.kubernetes/tasks/control-plane-setup.yml for master
+
+TASK [geerlingguy.kubernetes : Create the directory for the kubernetes_config_file] ***
+ok: [master]
+
+TASK [geerlingguy.kubernetes : Deploy the config-file for kubeadm and kubelet] ***
+ok: [master]
+
+TASK [geerlingguy.kubernetes : Initialize Kubernetes control plane with kubeadm init] ***
+skipping: [master]
+
+TASK [geerlingguy.kubernetes : Initialize Kubernetes control plane with kubeadm init and ignore_preflight_errors] ***
+skipping: [master]
+
+TASK [geerlingguy.kubernetes : Print the init output to screen.] ***************
+skipping: [master]
+
+TASK [geerlingguy.kubernetes : Ensure .kube directory exists.] *****************
+ok: [master]
+
+TASK [geerlingguy.kubernetes : Symlink the kubectl admin.conf to ~/.kube/conf.] ***
+ok: [master]
+
+TASK [geerlingguy.kubernetes : Configure Flannel networking.] ******************
+ok: [master]
+
+TASK [geerlingguy.kubernetes : Configure Calico networking.] *******************
+skipping: [master]
+
+TASK [geerlingguy.kubernetes : Get Kubernetes version for Weave installation.] ***
+skipping: [master]
+
+TASK [geerlingguy.kubernetes : Configure Weave networking.] ********************
+skipping: [master]
+
+TASK [geerlingguy.kubernetes : Allow pods on control plane (if configured).] ***
+skipping: [master]
+
+TASK [geerlingguy.kubernetes : Get the kubeadm join command from the Kubernetes control plane.] ***
+skipping: [node1]
+ok: [master]
+
+TASK [geerlingguy.kubernetes : Set the kubeadm join command globally.] *********
+ok: [master] => (item=master)
+skipping: [node1] => (item=master) 
+ok: [master -> node1(192.168.56.11)] => (item=node1)
+skipping: [node1] => (item=node1) 
+skipping: [node1]
+
+TASK [geerlingguy.kubernetes : include_tasks] **********************************
+skipping: [master]
+included: /home/quoc-thinh/Documents/HK1_2026-2027/Advanced-DevOps/Project01/ansible-for-devops-kubernetes/roles/geerlingguy.kubernetes/tasks/node-setup.yml for node1
+
+TASK [geerlingguy.kubernetes : Join node to Kubernetes control plane.] *********
+ok: [node1]
+
+PLAY [Install Helm on the Kubernetes control plane] ****************************
+
+TASK [Gathering Facts] *********************************************************
+ok: [master]
+
+TASK [geerlingguy.helm : Check if Helm binary exists.] *************************
+ok: [master]
+
+TASK [geerlingguy.helm : Check Helm version.] **********************************
+ok: [master]
+
+TASK [geerlingguy.helm : Download helm.] ***************************************
+skipping: [master]
+
+TASK [geerlingguy.helm : Copy helm binary into place.] *************************
+skipping: [master]
+
+PLAY [Wait until Kubernetes is ready] ******************************************
+
+TASK [Wait until every inventory node is registered and Ready.] ****************
+ok: [master] => (item=master)
+ok: [master] => (item=node1)
+
+TASK [Wait until all kube-system pods are Ready.] ******************************
+ok: [master]
+
+TASK [Wait until the Flannel DaemonSet rollout is complete.] *******************
+ok: [master]
+
+TASK [Show Kubernetes nodes.] **************************************************
+ok: [master]
+
+TASK [Print Kubernetes nodes.] *************************************************
+ok: [master] => {
+    "kubernetes_nodes.stdout_lines": [
+        "NAME     STATUS   ROLES           AGE     VERSION    INTERNAL-IP     EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION       CONTAINER-RUNTIME",
+        "master   Ready    control-plane   7h25m   v1.32.13   192.168.56.10   <none>        Ubuntu 22.04.5 LTS   5.15.0-198-generic   containerd://2.4.2",
+        "node1    Ready    <none>          7h25m   v1.32.13   192.168.56.11   <none>        Ubuntu 22.04.5 LTS   5.15.0-198-generic   containerd://2.4.2"
+    ]
+}
+
+TASK [Show kube-system pods.] **************************************************
+ok: [master]
+
+TASK [Print kube-system pods.] *************************************************
+ok: [master] => {
+    "kube_system_pods.stdout_lines": [
+        "NAME                             READY   STATUS    RESTARTS   AGE     IP              NODE     NOMINATED NODE   READINESS GATES",
+        "coredns-668d6bf9bc-4z2ln         1/1     Running   0          7h25m   10.244.0.3      master   <none>           <none>",
+        "coredns-668d6bf9bc-c2trr         1/1     Running   0          7h25m   10.244.0.2      master   <none>           <none>",
+        "etcd-master                      1/1     Running   0          7h25m   192.168.56.10   master   <none>           <none>",
+        "kube-apiserver-master            1/1     Running   0          7h25m   192.168.56.10   master   <none>           <none>",
+        "kube-controller-manager-master   1/1     Running   0          7h25m   192.168.56.10   master   <none>           <none>",
+        "kube-proxy-g5652                 1/1     Running   0          7h25m   192.168.56.10   master   <none>           <none>",
+        "kube-proxy-g66fm                 1/1     Running   0          7h25m   192.168.56.11   node1    <none>           <none>",
+        "kube-scheduler-master            1/1     Running   0          7h25m   192.168.56.10   master   <none>           <none>"
+    ]
+}
+
+TASK [Show Flannel pods.] ******************************************************
+ok: [master]
+
+TASK [Print Flannel pods.] *****************************************************
+ok: [master] => {
+    "flannel_pods.stdout_lines": [
+        "NAME                    READY   STATUS    RESTARTS   AGE   IP              NODE     NOMINATED NODE   READINESS GATES",
+        "kube-flannel-ds-pdt7f   1/1     Running   0          4s    192.168.56.10   master   <none>           <none>",
+        "kube-flannel-ds-qh8x8   1/1     Running   0          7s    192.168.56.11   node1    <none>           <none>"
+    ]
+}
+
+PLAY RECAP *********************************************************************
+master                     : ok=57   changed=0    unreachable=0    failed=0    skipped=17   rescued=0    ignored=0   
+node1                      : ok=36   changed=0    unreachable=0    failed=0    skipped=13   rescued=0    ignored=0   
+

@@ -37,3 +37,14 @@ kubernetes_flannel_manifest_file: "{{ flannel_manifest_path }}"
 
 # Project explicitly uses Helm 3.
 helm_version: "v3.22.0"
+
+# Ingress: single entry point for the storefront, routed by hostname.
+ingress_namespace: ingress-nginx
+ingress_release: ingress-nginx
+ingress_chart_repo_url: "https://kubernetes.github.io/ingress-nginx"
+ingress_chart_version: "4.15.1"
+ingress_class_name: nginx
+ingress_hostname: boutique.local
+# Fixed NodePorts keep the URL stable across clean rebuilds.
+ingress_http_nodeport: 30080
+ingress_https_nodeport: 30443

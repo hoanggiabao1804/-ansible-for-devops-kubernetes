@@ -1,0 +1,41 @@
+$ kubectl -n kube-flannel get ds kube-flannel-ds -o jsonpath={..args}
+["--ip-masq","--kube-subnet-mgr","--iface=enp0s3"] ["-f","/flannel","/opt/cni/bin/flannel"] ["-f","/etc/kube-flannel/cni-conf.json","/etc/cni/net.d/10-flannel.conflist"]
+
+$ kubectl -n kube-flannel logs -l app=flannel --prefix | grep "Using interface"
+Defaulted container "kube-flannel" out of: kube-flannel, install-cni-plugin (init), install-cni (init)
+Defaulted container "kube-flannel" out of: kube-flannel, install-cni-plugin (init), install-cni (init)
+[pod/kube-flannel-ds-ms8rv/kube-flannel] I1016 22:27:41.635898       1 match.go:269] Using interface with name enp0s3 and address 10.0.2.15
+[pod/kube-flannel-ds-qkdfj/kube-flannel] I1016 22:27:44.908999       1 match.go:269] Using interface with name enp0s3 and address 10.0.2.15
+
+$ kubectl get nodes -o custom-columns=NAME,FLANNEL-PUBLIC-IP
+NAME     FLANNEL-PUBLIC-IP
+master   10.0.2.15
+node1    10.0.2.15
+
+$ ip -d link show flannel.1   # on node1
+vxlan id 1 local 10.0.2.15 dev enp0s3
+
+$ kubectl get pods -A -o wide | grep coredns
+kube-system    coredns-668d6bf9bc-4z2ln                 1/1     Running   0          7h17m   10.244.0.3      master   <none>           <none>
+kube-system    coredns-668d6bf9bc-c2trr                 1/1     Running   0          7h17m   10.244.0.2      master   <none>           <none>
+
+$ kubectl exec nettest -- nslookup kubernetes.default   # pod on node1 -> CoreDNS on master
+;; connection timed out; no servers could be reached
+
+command terminated with exit code 1
+
+$ kubectl exec nettest -- ping -c3 10.244.0.2   # pod on node1 -> CoreDNS pod on master
+PING 10.244.0.2 (10.244.0.2): 56 data bytes
+
+--- 10.244.0.2 ping statistics ---
+3 packets transmitted, 0 packets received, 100% packet loss
+command terminated with exit code 1
+
+$ curl http://192.168.56.10:31168/   # NodePort via master -> pod on node1
+HTTP 000
+$ kubectl -n microservice logs deploy/frontend --tail=2   # control plane still OK
+{"http.req.id":"f5630ca9-c7d3-4bf9-8772-1f5a8fdf4f45","http.req.method":"GET","http.req.path":"/","message":"ENV_PLATFORM is: local","session":"3bfca2e6-8af6-4854-bb5a-c384344bfb9f","severity":"debug","timestamp":"2026-10-16T22:14:20.006003763Z"}
+{"http.req.id":"f5630ca9-c7d3-4bf9-8772-1f5a8fdf4f45","http.req.method":"GET","http.req.path":"/","http.resp.bytes":10857,"http.resp.status":200,"http.resp.took_ms":15,"message":"request complete","session":"3bfca2e6-8af6-4854-bb5a-c384344bfb9f","severity":"debug","timestamp":"2026-10-16T22:14:20.011053051Z"}
+
+$ curl http://192.168.56.11:31168/
+HTTP 500

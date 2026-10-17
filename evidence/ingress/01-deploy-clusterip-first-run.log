@@ -1,0 +1,111 @@
+
+PLAY [Deploy Online Boutique with Helm] ****************************************
+
+TASK [Gathering Facts] *********************************************************
+ok: [master]
+
+TASK [Install dependencies required for Git and Helm Ansible module.] **********
+ok: [master]
+
+TASK [Install Helm diff for reliable change detection.] ************************
+ok: [master]
+
+TASK [Clone upstream microservice Helm charts.] ********************************
+ok: [master]
+
+TASK [Render upstream checkout chart.] *****************************************
+ok: [master]
+
+TASK [Confirm the upstream checkout chart contains the naming bug.] ************
+ok: [master] => {
+    "changed": false,
+    "msg": "Upstream checkout bug reproduced: the chart renders 'servicename' before our override is applied."
+}
+
+TASK [Deploy Online Boutique Helm releases.] ***********************************
+ok: [master] => (item=rediscart)
+ok: [master] => (item=emailservice)
+ok: [master] => (item=cartservice)
+ok: [master] => (item=currencyservice)
+ok: [master] => (item=paymentservice)
+ok: [master] => (item=recommendationservice)
+ok: [master] => (item=productcatalogservice)
+ok: [master] => (item=shippingservice)
+ok: [master] => (item=adservice)
+ok: [master] => (item=checkoutservice)
+changed: [master] => (item=frontendservice)
+
+TASK [Show installed Helm releases.] *******************************************
+ok: [master]
+
+TASK [Print installed Helm releases.] ******************************************
+ok: [master] => {
+    "helm_release_list.stdout_lines": [
+        "NAME                 \tNAMESPACE   \tREVISION\tUPDATED                                \tSTATUS  \tCHART             \tAPP VERSION",
+        "adservice            \tmicroservice\t1       \t2026-10-16 15:21:11.213252946 +0000 UTC\tdeployed\tmicroservice-0.1.0\t1.16.0     ",
+        "cartservice          \tmicroservice\t1       \t2026-10-16 15:19:22.983809486 +0000 UTC\tdeployed\tmicroservice-0.1.0\t1.16.0     ",
+        "checkoutservice      \tmicroservice\t1       \t2026-10-16 15:21:37.905502067 +0000 UTC\tdeployed\tmicroservice-0.1.0\t1.16.0     ",
+        "currencyservice      \tmicroservice\t1       \t2026-10-16 15:19:35.650365056 +0000 UTC\tdeployed\tmicroservice-0.1.0\t1.16.0     ",
+        "emailservice         \tmicroservice\t1       \t2026-10-16 15:18:56.30144552 +0000 UTC \tdeployed\tmicroservice-0.1.0\t1.16.0     ",
+        "frontendservice      \tmicroservice\t4       \t2026-10-17 00:36:59.350294889 +0000 UTC\tdeployed\tmicroservice-0.1.0\t1.16.0     ",
+        "paymentservice       \tmicroservice\t1       \t2026-10-16 15:19:58.35683308 +0000 UTC \tdeployed\tmicroservice-0.1.0\t1.16.0     ",
+        "productcatalogservice\tmicroservice\t1       \t2026-10-16 15:20:41.755958045 +0000 UTC\tdeployed\tmicroservice-0.1.0\t1.16.0     ",
+        "recommendationservice\tmicroservice\t1       \t2026-10-16 15:20:13.076380645 +0000 UTC\tdeployed\tmicroservice-0.1.0\t1.16.0     ",
+        "rediscart            \tmicroservice\t1       \t2026-10-16 15:18:39.58483544 +0000 UTC \tdeployed\tmicroservice-0.1.0\t1.16.0     ",
+        "shippingservice      \tmicroservice\t1       \t2026-10-16 15:20:58.456777335 +0000 UTC\tdeployed\tmicroservice-0.1.0\t1.16.0     "
+    ]
+}
+
+TASK [Show Online Boutique deployments.] ***************************************
+ok: [master]
+
+TASK [Print Online Boutique deployments.] **************************************
+ok: [master] => {
+    "boutique_deployments.stdout_lines": [
+        "NAME                    READY   UP-TO-DATE   AVAILABLE   AGE",
+        "adservice               1/1     1            1           9h",
+        "cartservice             1/1     1            1           9h",
+        "checkoutservice         1/1     1            1           9h",
+        "currencyservice         1/1     1            1           9h",
+        "emailservice            1/1     1            1           9h",
+        "frontend                1/1     1            1           9h",
+        "paymentservice          1/1     1            1           9h",
+        "productcatalogservice   1/1     1            1           9h",
+        "recommendationservice   1/1     1            1           9h",
+        "redis-cart              1/1     1            1           9h",
+        "shippingservice         1/1     1            1           9h"
+    ]
+}
+
+TASK [Show Online Boutique services.] ******************************************
+ok: [master]
+
+TASK [Print Online Boutique services.] *****************************************
+ok: [master] => {
+    "boutique_services.stdout_lines": [
+        "NAME                    TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)     AGE",
+        "adservice               ClusterIP   10.97.28.226     <none>        9555/TCP    9h",
+        "cartservice             ClusterIP   10.99.36.144     <none>        7070/TCP    9h",
+        "checkoutservice         ClusterIP   10.96.196.45     <none>        5050/TCP    9h",
+        "currencyservice         ClusterIP   10.108.194.83    <none>        7000/TCP    9h",
+        "emailservice            ClusterIP   10.103.78.86     <none>        5000/TCP    9h",
+        "frontend                ClusterIP   10.105.1.139     <none>        80/TCP      9h",
+        "paymentservice          ClusterIP   10.100.2.93      <none>        50051/TCP   9h",
+        "productcatalogservice   ClusterIP   10.107.190.82    <none>        3550/TCP    9h",
+        "recommendationservice   ClusterIP   10.111.59.127    <none>        8080/TCP    9h",
+        "redis-cart              ClusterIP   10.103.207.105   <none>        6379/TCP    9h",
+        "shippingservice         ClusterIP   10.104.102.182   <none>        50051/TCP   9h"
+    ]
+}
+
+TASK [Get frontend Service type.] **********************************************
+ok: [master]
+
+TASK [Print frontend exposure.] ************************************************
+ok: [master] => {
+    "msg": "frontend Service type: ClusterIP. The storefront is published by playbooks/ingress.yml."
+}
+
+PLAY RECAP *********************************************************************
+master                     : ok=15   changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+

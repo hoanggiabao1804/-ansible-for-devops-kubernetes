@@ -1,0 +1,754 @@
+
+PLAY [Verify Kubernetes cluster and Online Boutique] ***************************
+
+TASK [Read Kubernetes node Ready status and InternalIP.] ***********************
+ok: [master] => (item=master)
+ok: [master] => (item=node1)
+
+TASK [Assert Kubernetes nodes are Ready and use private IPs.] ******************
+ok: [master] => (item=master) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "ansible_loop_var": "item",
+        "changed": false,
+        "cmd": [
+            "kubectl",
+            "--kubeconfig",
+            "/etc/kubernetes/admin.conf",
+            "get",
+            "node",
+            "master",
+            "-o",
+            "jsonpath={.status.conditions[?(@.type==\"Ready\")].status} {.status.addresses[?(@.type==\"InternalIP\")].address}"
+        ],
+        "delta": "0:00:00.049905",
+        "end": "2026-10-17 00:51:57.552569",
+        "failed": false,
+        "invocation": {
+            "module_args": {
+                "_raw_params": "kubectl --kubeconfig /etc/kubernetes/admin.conf get node master -o jsonpath='{.status.conditions[?(@.type==\"Ready\")].status} {.status.addresses[?(@.type==\"InternalIP\")].address}'",
+                "_uses_shell": false,
+                "argv": null,
+                "chdir": null,
+                "creates": null,
+                "executable": null,
+                "expand_argument_vars": true,
+                "removes": null,
+                "stdin": null,
+                "stdin_add_newline": true,
+                "strip_empty_ends": true
+            }
+        },
+        "item": {
+            "ip": "192.168.56.10",
+            "name": "master"
+        },
+        "msg": "",
+        "rc": 0,
+        "start": "2026-10-17 00:51:57.502664",
+        "stderr": "",
+        "stderr_lines": [],
+        "stdout": "True 192.168.56.10",
+        "stdout_lines": [
+            "True 192.168.56.10"
+        ]
+    },
+    "msg": "Node master is Ready with private IP 192.168.56.10."
+}
+ok: [master] => (item=node1) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "ansible_loop_var": "item",
+        "changed": false,
+        "cmd": [
+            "kubectl",
+            "--kubeconfig",
+            "/etc/kubernetes/admin.conf",
+            "get",
+            "node",
+            "node1",
+            "-o",
+            "jsonpath={.status.conditions[?(@.type==\"Ready\")].status} {.status.addresses[?(@.type==\"InternalIP\")].address}"
+        ],
+        "delta": "0:00:00.054782",
+        "end": "2026-10-17 00:51:57.716264",
+        "failed": false,
+        "invocation": {
+            "module_args": {
+                "_raw_params": "kubectl --kubeconfig /etc/kubernetes/admin.conf get node node1 -o jsonpath='{.status.conditions[?(@.type==\"Ready\")].status} {.status.addresses[?(@.type==\"InternalIP\")].address}'",
+                "_uses_shell": false,
+                "argv": null,
+                "chdir": null,
+                "creates": null,
+                "executable": null,
+                "expand_argument_vars": true,
+                "removes": null,
+                "stdin": null,
+                "stdin_add_newline": true,
+                "strip_empty_ends": true
+            }
+        },
+        "item": {
+            "ip": "192.168.56.11",
+            "name": "node1"
+        },
+        "msg": "",
+        "rc": 0,
+        "start": "2026-10-17 00:51:57.661482",
+        "stderr": "",
+        "stderr_lines": [],
+        "stdout": "True 192.168.56.11",
+        "stdout_lines": [
+            "True 192.168.56.11"
+        ]
+    },
+    "msg": "Node node1 is Ready with private IP 192.168.56.11."
+}
+
+TASK [Read Online Boutique deployment replica status.] *************************
+ok: [master] => (item=adservice)
+ok: [master] => (item=cartservice)
+ok: [master] => (item=checkoutservice)
+ok: [master] => (item=currencyservice)
+ok: [master] => (item=emailservice)
+ok: [master] => (item=frontend)
+ok: [master] => (item=paymentservice)
+ok: [master] => (item=productcatalogservice)
+ok: [master] => (item=recommendationservice)
+ok: [master] => (item=redis-cart)
+ok: [master] => (item=shippingservice)
+
+TASK [Assert all Online Boutique deployments are available.] *******************
+ok: [master] => (item=adservice) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "ansible_loop_var": "item",
+        "changed": false,
+        "cmd": [
+            "kubectl",
+            "--kubeconfig",
+            "/etc/kubernetes/admin.conf",
+            "-n",
+            "microservice",
+            "get",
+            "deployment",
+            "adservice",
+            "-o",
+            "jsonpath={.spec.replicas} {.status.readyReplicas} {.status.availableReplicas}"
+        ],
+        "delta": "0:00:00.048918",
+        "end": "2026-10-17 00:51:57.937754",
+        "failed": false,
+        "invocation": {
+            "module_args": {
+                "_raw_params": "kubectl --kubeconfig /etc/kubernetes/admin.conf -n microservice get deployment adservice -o jsonpath='{.spec.replicas} {.status.readyReplicas} {.status.availableReplicas}'",
+                "_uses_shell": false,
+                "argv": null,
+                "chdir": null,
+                "creates": null,
+                "executable": null,
+                "expand_argument_vars": true,
+                "removes": null,
+                "stdin": null,
+                "stdin_add_newline": true,
+                "strip_empty_ends": true
+            }
+        },
+        "item": "adservice",
+        "msg": "",
+        "rc": 0,
+        "start": "2026-10-17 00:51:57.888836",
+        "stderr": "",
+        "stderr_lines": [],
+        "stdout": "1 1 1",
+        "stdout_lines": [
+            "1 1 1"
+        ]
+    },
+    "msg": "Deployment adservice is available (1/1)."
+}
+ok: [master] => (item=cartservice) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "ansible_loop_var": "item",
+        "changed": false,
+        "cmd": [
+            "kubectl",
+            "--kubeconfig",
+            "/etc/kubernetes/admin.conf",
+            "-n",
+            "microservice",
+            "get",
+            "deployment",
+            "cartservice",
+            "-o",
+            "jsonpath={.spec.replicas} {.status.readyReplicas} {.status.availableReplicas}"
+        ],
+        "delta": "0:00:00.049670",
+        "end": "2026-10-17 00:51:58.101821",
+        "failed": false,
+        "invocation": {
+            "module_args": {
+                "_raw_params": "kubectl --kubeconfig /etc/kubernetes/admin.conf -n microservice get deployment cartservice -o jsonpath='{.spec.replicas} {.status.readyReplicas} {.status.availableReplicas}'",
+                "_uses_shell": false,
+                "argv": null,
+                "chdir": null,
+                "creates": null,
+                "executable": null,
+                "expand_argument_vars": true,
+                "removes": null,
+                "stdin": null,
+                "stdin_add_newline": true,
+                "strip_empty_ends": true
+            }
+        },
+        "item": "cartservice",
+        "msg": "",
+        "rc": 0,
+        "start": "2026-10-17 00:51:58.052151",
+        "stderr": "",
+        "stderr_lines": [],
+        "stdout": "1 1 1",
+        "stdout_lines": [
+            "1 1 1"
+        ]
+    },
+    "msg": "Deployment cartservice is available (1/1)."
+}
+ok: [master] => (item=checkoutservice) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "ansible_loop_var": "item",
+        "changed": false,
+        "cmd": [
+            "kubectl",
+            "--kubeconfig",
+            "/etc/kubernetes/admin.conf",
+            "-n",
+            "microservice",
+            "get",
+            "deployment",
+            "checkoutservice",
+            "-o",
+            "jsonpath={.spec.replicas} {.status.readyReplicas} {.status.availableReplicas}"
+        ],
+        "delta": "0:00:00.051294",
+        "end": "2026-10-17 00:51:58.261955",
+        "failed": false,
+        "invocation": {
+            "module_args": {
+                "_raw_params": "kubectl --kubeconfig /etc/kubernetes/admin.conf -n microservice get deployment checkoutservice -o jsonpath='{.spec.replicas} {.status.readyReplicas} {.status.availableReplicas}'",
+                "_uses_shell": false,
+                "argv": null,
+                "chdir": null,
+                "creates": null,
+                "executable": null,
+                "expand_argument_vars": true,
+                "removes": null,
+                "stdin": null,
+                "stdin_add_newline": true,
+                "strip_empty_ends": true
+            }
+        },
+        "item": "checkoutservice",
+        "msg": "",
+        "rc": 0,
+        "start": "2026-10-17 00:51:58.210661",
+        "stderr": "",
+        "stderr_lines": [],
+        "stdout": "1 1 1",
+        "stdout_lines": [
+            "1 1 1"
+        ]
+    },
+    "msg": "Deployment checkoutservice is available (1/1)."
+}
+ok: [master] => (item=currencyservice) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "ansible_loop_var": "item",
+        "changed": false,
+        "cmd": [
+            "kubectl",
+            "--kubeconfig",
+            "/etc/kubernetes/admin.conf",
+            "-n",
+            "microservice",
+            "get",
+            "deployment",
+            "currencyservice",
+            "-o",
+            "jsonpath={.spec.replicas} {.status.readyReplicas} {.status.availableReplicas}"
+        ],
+        "delta": "0:00:00.053581",
+        "end": "2026-10-17 00:51:58.427629",
+        "failed": false,
+        "invocation": {
+            "module_args": {
+                "_raw_params": "kubectl --kubeconfig /etc/kubernetes/admin.conf -n microservice get deployment currencyservice -o jsonpath='{.spec.replicas} {.status.readyReplicas} {.status.availableReplicas}'",
+                "_uses_shell": false,
+                "argv": null,
+                "chdir": null,
+                "creates": null,
+                "executable": null,
+                "expand_argument_vars": true,
+                "removes": null,
+                "stdin": null,
+                "stdin_add_newline": true,
+                "strip_empty_ends": true
+            }
+        },
+        "item": "currencyservice",
+        "msg": "",
+        "rc": 0,
+        "start": "2026-10-17 00:51:58.374048",
+        "stderr": "",
+        "stderr_lines": [],
+        "stdout": "1 1 1",
+        "stdout_lines": [
+            "1 1 1"
+        ]
+    },
+    "msg": "Deployment currencyservice is available (1/1)."
+}
+ok: [master] => (item=emailservice) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "ansible_loop_var": "item",
+        "changed": false,
+        "cmd": [
+            "kubectl",
+            "--kubeconfig",
+            "/etc/kubernetes/admin.conf",
+            "-n",
+            "microservice",
+            "get",
+            "deployment",
+            "emailservice",
+            "-o",
+            "jsonpath={.spec.replicas} {.status.readyReplicas} {.status.availableReplicas}"
+        ],
+        "delta": "0:00:00.055060",
+        "end": "2026-10-17 00:51:58.595473",
+        "failed": false,
+        "invocation": {
+            "module_args": {
+                "_raw_params": "kubectl --kubeconfig /etc/kubernetes/admin.conf -n microservice get deployment emailservice -o jsonpath='{.spec.replicas} {.status.readyReplicas} {.status.availableReplicas}'",
+                "_uses_shell": false,
+                "argv": null,
+                "chdir": null,
+                "creates": null,
+                "executable": null,
+                "expand_argument_vars": true,
+                "removes": null,
+                "stdin": null,
+                "stdin_add_newline": true,
+                "strip_empty_ends": true
+            }
+        },
+        "item": "emailservice",
+        "msg": "",
+        "rc": 0,
+        "start": "2026-10-17 00:51:58.540413",
+        "stderr": "",
+        "stderr_lines": [],
+        "stdout": "1 1 1",
+        "stdout_lines": [
+            "1 1 1"
+        ]
+    },
+    "msg": "Deployment emailservice is available (1/1)."
+}
+ok: [master] => (item=frontend) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "ansible_loop_var": "item",
+        "changed": false,
+        "cmd": [
+            "kubectl",
+            "--kubeconfig",
+            "/etc/kubernetes/admin.conf",
+            "-n",
+            "microservice",
+            "get",
+            "deployment",
+            "frontend",
+            "-o",
+            "jsonpath={.spec.replicas} {.status.readyReplicas} {.status.availableReplicas}"
+        ],
+        "delta": "0:00:00.053489",
+        "end": "2026-10-17 00:51:58.757962",
+        "failed": false,
+        "invocation": {
+            "module_args": {
+                "_raw_params": "kubectl --kubeconfig /etc/kubernetes/admin.conf -n microservice get deployment frontend -o jsonpath='{.spec.replicas} {.status.readyReplicas} {.status.availableReplicas}'",
+                "_uses_shell": false,
+                "argv": null,
+                "chdir": null,
+                "creates": null,
+                "executable": null,
+                "expand_argument_vars": true,
+                "removes": null,
+                "stdin": null,
+                "stdin_add_newline": true,
+                "strip_empty_ends": true
+            }
+        },
+        "item": "frontend",
+        "msg": "",
+        "rc": 0,
+        "start": "2026-10-17 00:51:58.704473",
+        "stderr": "",
+        "stderr_lines": [],
+        "stdout": "1 1 1",
+        "stdout_lines": [
+            "1 1 1"
+        ]
+    },
+    "msg": "Deployment frontend is available (1/1)."
+}
+ok: [master] => (item=paymentservice) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "ansible_loop_var": "item",
+        "changed": false,
+        "cmd": [
+            "kubectl",
+            "--kubeconfig",
+            "/etc/kubernetes/admin.conf",
+            "-n",
+            "microservice",
+            "get",
+            "deployment",
+            "paymentservice",
+            "-o",
+            "jsonpath={.spec.replicas} {.status.readyReplicas} {.status.availableReplicas}"
+        ],
+        "delta": "0:00:00.050982",
+        "end": "2026-10-17 00:51:58.924715",
+        "failed": false,
+        "invocation": {
+            "module_args": {
+                "_raw_params": "kubectl --kubeconfig /etc/kubernetes/admin.conf -n microservice get deployment paymentservice -o jsonpath='{.spec.replicas} {.status.readyReplicas} {.status.availableReplicas}'",
+                "_uses_shell": false,
+                "argv": null,
+                "chdir": null,
+                "creates": null,
+                "executable": null,
+                "expand_argument_vars": true,
+                "removes": null,
+                "stdin": null,
+                "stdin_add_newline": true,
+                "strip_empty_ends": true
+            }
+        },
+        "item": "paymentservice",
+        "msg": "",
+        "rc": 0,
+        "start": "2026-10-17 00:51:58.873733",
+        "stderr": "",
+        "stderr_lines": [],
+        "stdout": "1 1 1",
+        "stdout_lines": [
+            "1 1 1"
+        ]
+    },
+    "msg": "Deployment paymentservice is available (1/1)."
+}
+ok: [master] => (item=productcatalogservice) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "ansible_loop_var": "item",
+        "changed": false,
+        "cmd": [
+            "kubectl",
+            "--kubeconfig",
+            "/etc/kubernetes/admin.conf",
+            "-n",
+            "microservice",
+            "get",
+            "deployment",
+            "productcatalogservice",
+            "-o",
+            "jsonpath={.spec.replicas} {.status.readyReplicas} {.status.availableReplicas}"
+        ],
+        "delta": "0:00:00.047524",
+        "end": "2026-10-17 00:51:59.100052",
+        "failed": false,
+        "invocation": {
+            "module_args": {
+                "_raw_params": "kubectl --kubeconfig /etc/kubernetes/admin.conf -n microservice get deployment productcatalogservice -o jsonpath='{.spec.replicas} {.status.readyReplicas} {.status.availableReplicas}'",
+                "_uses_shell": false,
+                "argv": null,
+                "chdir": null,
+                "creates": null,
+                "executable": null,
+                "expand_argument_vars": true,
+                "removes": null,
+                "stdin": null,
+                "stdin_add_newline": true,
+                "strip_empty_ends": true
+            }
+        },
+        "item": "productcatalogservice",
+        "msg": "",
+        "rc": 0,
+        "start": "2026-10-17 00:51:59.052528",
+        "stderr": "",
+        "stderr_lines": [],
+        "stdout": "1 1 1",
+        "stdout_lines": [
+            "1 1 1"
+        ]
+    },
+    "msg": "Deployment productcatalogservice is available (1/1)."
+}
+ok: [master] => (item=recommendationservice) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "ansible_loop_var": "item",
+        "changed": false,
+        "cmd": [
+            "kubectl",
+            "--kubeconfig",
+            "/etc/kubernetes/admin.conf",
+            "-n",
+            "microservice",
+            "get",
+            "deployment",
+            "recommendationservice",
+            "-o",
+            "jsonpath={.spec.replicas} {.status.readyReplicas} {.status.availableReplicas}"
+        ],
+        "delta": "0:00:00.058068",
+        "end": "2026-10-17 00:51:59.268593",
+        "failed": false,
+        "invocation": {
+            "module_args": {
+                "_raw_params": "kubectl --kubeconfig /etc/kubernetes/admin.conf -n microservice get deployment recommendationservice -o jsonpath='{.spec.replicas} {.status.readyReplicas} {.status.availableReplicas}'",
+                "_uses_shell": false,
+                "argv": null,
+                "chdir": null,
+                "creates": null,
+                "executable": null,
+                "expand_argument_vars": true,
+                "removes": null,
+                "stdin": null,
+                "stdin_add_newline": true,
+                "strip_empty_ends": true
+            }
+        },
+        "item": "recommendationservice",
+        "msg": "",
+        "rc": 0,
+        "start": "2026-10-17 00:51:59.210525",
+        "stderr": "",
+        "stderr_lines": [],
+        "stdout": "1 1 1",
+        "stdout_lines": [
+            "1 1 1"
+        ]
+    },
+    "msg": "Deployment recommendationservice is available (1/1)."
+}
+ok: [master] => (item=redis-cart) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "ansible_loop_var": "item",
+        "changed": false,
+        "cmd": [
+            "kubectl",
+            "--kubeconfig",
+            "/etc/kubernetes/admin.conf",
+            "-n",
+            "microservice",
+            "get",
+            "deployment",
+            "redis-cart",
+            "-o",
+            "jsonpath={.spec.replicas} {.status.readyReplicas} {.status.availableReplicas}"
+        ],
+        "delta": "0:00:00.055040",
+        "end": "2026-10-17 00:51:59.431562",
+        "failed": false,
+        "invocation": {
+            "module_args": {
+                "_raw_params": "kubectl --kubeconfig /etc/kubernetes/admin.conf -n microservice get deployment redis-cart -o jsonpath='{.spec.replicas} {.status.readyReplicas} {.status.availableReplicas}'",
+                "_uses_shell": false,
+                "argv": null,
+                "chdir": null,
+                "creates": null,
+                "executable": null,
+                "expand_argument_vars": true,
+                "removes": null,
+                "stdin": null,
+                "stdin_add_newline": true,
+                "strip_empty_ends": true
+            }
+        },
+        "item": "redis-cart",
+        "msg": "",
+        "rc": 0,
+        "start": "2026-10-17 00:51:59.376522",
+        "stderr": "",
+        "stderr_lines": [],
+        "stdout": "1 1 1",
+        "stdout_lines": [
+            "1 1 1"
+        ]
+    },
+    "msg": "Deployment redis-cart is available (1/1)."
+}
+ok: [master] => (item=shippingservice) => {
+    "ansible_loop_var": "item",
+    "changed": false,
+    "item": {
+        "ansible_loop_var": "item",
+        "changed": false,
+        "cmd": [
+            "kubectl",
+            "--kubeconfig",
+            "/etc/kubernetes/admin.conf",
+            "-n",
+            "microservice",
+            "get",
+            "deployment",
+            "shippingservice",
+            "-o",
+            "jsonpath={.spec.replicas} {.status.readyReplicas} {.status.availableReplicas}"
+        ],
+        "delta": "0:00:00.049462",
+        "end": "2026-10-17 00:51:59.589334",
+        "failed": false,
+        "invocation": {
+            "module_args": {
+                "_raw_params": "kubectl --kubeconfig /etc/kubernetes/admin.conf -n microservice get deployment shippingservice -o jsonpath='{.spec.replicas} {.status.readyReplicas} {.status.availableReplicas}'",
+                "_uses_shell": false,
+                "argv": null,
+                "chdir": null,
+                "creates": null,
+                "executable": null,
+                "expand_argument_vars": true,
+                "removes": null,
+                "stdin": null,
+                "stdin_add_newline": true,
+                "strip_empty_ends": true
+            }
+        },
+        "item": "shippingservice",
+        "msg": "",
+        "rc": 0,
+        "start": "2026-10-17 00:51:59.539872",
+        "stderr": "",
+        "stderr_lines": [],
+        "stdout": "1 1 1",
+        "stdout_lines": [
+            "1 1 1"
+        ]
+    },
+    "msg": "Deployment shippingservice is available (1/1)."
+}
+
+TASK [Verify checkoutservice Deployment exists.] *******************************
+ok: [master]
+
+TASK [Verify checkoutservice Service exists.] **********************************
+ok: [master]
+
+TASK [Check that broken servicename Deployment does not exist.] ****************
+ok: [master]
+
+TASK [Check that broken servicename Service does not exist.] *******************
+ok: [master]
+
+TASK [Assert checkoutservice naming override works.] ***************************
+ok: [master] => {
+    "changed": false,
+    "msg": "checkoutservice exists with the correct name and no 'servicename' resource exists."
+}
+
+TASK [Read frontend Service type.] *********************************************
+ok: [master]
+
+TASK [Assert frontend is a ClusterIP Service.] *********************************
+ok: [master] => {
+    "changed": false,
+    "msg": "frontend is ClusterIP and only reachable through the Ingress."
+}
+
+TASK [Wait for the Ingress controller rollout.] ********************************
+ok: [master]
+
+TASK [Read Ingress controller Service type and HTTP NodePort.] *****************
+ok: [master]
+
+TASK [Assert Ingress controller is exposed on the fixed NodePort.] *************
+ok: [master] => {
+    "changed": false,
+    "msg": "Ingress controller is exposed on NodePort 30080."
+}
+
+TASK [Read frontend Ingress class, host and backend.] **************************
+ok: [master]
+
+TASK [Assert frontend Ingress routes the hostname to frontend.] ****************
+ok: [master] => {
+    "changed": false,
+    "msg": "Ingress routes boutique.local to Service frontend (class nginx)."
+}
+
+TASK [Set Ingress endpoint.] ***************************************************
+ok: [master]
+
+TASK [Request storefront through the Ingress hostname.] ************************
+ok: [master]
+
+TASK [Assert storefront returned HTTP 200 through the Ingress.] ****************
+ok: [master] => {
+    "changed": false,
+    "msg": "Storefront returned HTTP 200 from http://boutique.local:30080/."
+}
+
+TASK [Assert storefront contains recognisable content.] ************************
+ok: [master] => {
+    "changed": false,
+    "msg": "Storefront response contains recognisable Online Boutique content."
+}
+
+TASK [Request the Ingress with an unknown hostname.] ***************************
+ok: [master]
+
+TASK [Assert unknown hostname is not routed to the storefront.] ****************
+ok: [master] => {
+    "changed": false,
+    "msg": "Unknown hostname returned 404; routing is hostname-based."
+}
+
+TASK [Print verification summary.] *********************************************
+ok: [master] => {
+    "msg": [
+        "Kubernetes nodes: PASS",
+        "11 Online Boutique deployments: PASS",
+        "checkoutservice naming: PASS",
+        "frontend ClusterIP: PASS",
+        "Ingress controller and frontend Ingress: PASS",
+        "Hostname routing (200 known / 404 unknown): PASS",
+        "Storefront URL: http://boutique.local:30080/"
+    ]
+}
+
+PLAY RECAP *********************************************************************
+master                     : ok=23   changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+

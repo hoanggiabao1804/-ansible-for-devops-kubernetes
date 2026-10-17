@@ -1,0 +1,26 @@
+
+PLAY [Install Ingress controller and route the storefront by hostname] *********
+
+TASK [Add ingress-nginx Helm repository.] **************************************
+changed: [master]
+
+TASK [Install ingress-nginx controller.] ***************************************
+changed: [master]
+
+TASK [Ensure manifest directory exists.] ***************************************
+changed: [master]
+
+TASK [Render frontend Ingress manifest.] ***************************************
+changed: [master]
+
+TASK [Apply frontend Ingress.] *************************************************
+changed: [master]
+
+TASK [Print storefront URL.] ***************************************************
+ok: [master] => {
+    "msg": "Storefront URL: http://boutique.local:30080/ (map boutique.local to 192.168.56.11 in /etc/hosts)"
+}
+
+PLAY RECAP *********************************************************************
+master                     : ok=6    changed=5    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0   
+

@@ -1,0 +1,15 @@
+$ kubectl get nodes -o wide
+NAME     STATUS   ROLES           AGE     VERSION    INTERNAL-IP     EXTERNAL-IP   OS-IMAGE             KERNEL-VERSION       CONTAINER-RUNTIME
+master   Ready    control-plane   6h18m   v1.32.13   192.168.56.10   <none>        Ubuntu 22.04.5 LTS   5.15.0-198-generic   containerd://2.4.2
+node1    Ready    <none>          6h18m   v1.32.13   192.168.56.11   <none>        Ubuntu 22.04.5 LTS   5.15.0-198-generic   containerd://2.4.2
+
+$ cat /etc/default/kubelet   # on node1
+KUBELET_EXTRA_ARGS=--node-ip=192.168.56.11
+
+$ kubectl -n microservice logs deploy/frontend --tail=3
+{"message":"sleeping 1m0s to retry initializing Stackdriver exporter","retry":3,"severity":"debug","timestamp":"2026-10-16T15:23:01.673830123Z"}
+{"message":"warning: could not initialize Stackdriver profiler after retrying, giving up","retry":3,"severity":"warning","timestamp":"2026-10-16T15:23:01.673894093Z"}
+{"message":"could not initialize Stackdriver exporter after retrying, giving up","retry":3,"severity":"warning","timestamp":"2026-10-16T15:24:01.674074357Z"}
+
+$ kubectl -n microservice exec deploy/redis-cart -- redis-cli ping
+PONG
