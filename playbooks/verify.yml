@@ -7,6 +7,7 @@
   vars_files:
     - "{{ playbook_dir }}/../vars/verify.yml"
     - "{{ playbook_dir }}/../vars/advanced.yml"
+    - "{{ playbook_dir }}/../vars/cluster.yml"
 
   vars:
     expected_nodes:
@@ -151,53 +152,113 @@
 
 
     # ================================================================
-    # 4. Verify frontend NodePort
+    # 4. Verify frontend is internal only (ClusterIP)
     # ================================================================
 
-    - name: Read frontend Service type and NodePort.
+    - name: Read frontend Service type.
       ansible.builtin.command:
         cmd: >-
           kubectl
           --kubeconfig {{ verify_kubeconfig }}
           -n {{ verify_namespace }}
           get service frontend
-          -o jsonpath='{.spec.type} {.spec.ports[0].nodePort}'
+          -o jsonpath='{.spec.type}'
       register: frontend_service
       changed_when: false
 
-    - name: Assert frontend is exposed through NodePort.
+    - name: Assert frontend is a ClusterIP Service.
       ansible.builtin.assert:
         that:
-          - frontend_service.stdout.split() | length == 2
-          - frontend_service.stdout.split()[0] == "NodePort"
-          - frontend_service.stdout.split()[1] | int >= 30000
-          - frontend_service.stdout.split()[1] | int <= 32767
+          - frontend_service.stdout == "ClusterIP"
         fail_msg: >-
-          frontend is not correctly exposed as a Kubernetes NodePort.
+          frontend is {{ frontend_service.stdout }}, expected ClusterIP.
+          All external traffic must enter through the Ingress controller.
         success_msg: >-
-          frontend is exposed using NodePort
-          {{ frontend_service.stdout.split()[1] }}.
+          frontend is ClusterIP and only reachable through the Ingress.
 
 
     # ================================================================
-    # 5. Build storefront URL
+    # 5. Verify Ingress controller and Ingress resource
     # ================================================================
 
-    - name: Set storefront URL.
+    - name: Wait for the Ingress controller rollout.
+      ansible.builtin.command:
+        cmd: >-
+          kubectl
+          --kubeconfig {{ verify_kubeconfig }}
+          -n {{ ingress_namespace }}
+          rollout status deployment/{{ ingress_release }}-controller
+          --timeout=120s
+      changed_when: false
+
+    - name: Read Ingress controller Service type and HTTP NodePort.
+      ansible.builtin.command:
+        cmd: >-
+          kubectl
+          --kubeconfig {{ verify_kubeconfig }}
+          -n {{ ingress_namespace }}
+          get service {{ ingress_release }}-controller
+          -o jsonpath='{.spec.type} {.spec.ports[?(@.name=="http")].nodePort}'
+      register: ingress_controller_service
+      changed_when: false
+
+    - name: Assert Ingress controller is exposed on the fixed NodePort.
+      ansible.builtin.assert:
+        that:
+          - ingress_controller_service.stdout.split() | length == 2
+          - ingress_controller_service.stdout.split()[0] == "NodePort"
+          - ingress_controller_service.stdout.split()[1] | int == ingress_http_nodeport | int
+        fail_msg: >-
+          Ingress controller Service is not NodePort {{ ingress_http_nodeport }}.
+          Current state: {{ ingress_controller_service.stdout }}
+        success_msg: >-
+          Ingress controller is exposed on NodePort {{ ingress_http_nodeport }}.
+
+    - name: Read frontend Ingress class, host and backend.
+      ansible.builtin.command:
+        cmd: >-
+          kubectl
+          --kubeconfig {{ verify_kubeconfig }}
+          -n {{ verify_namespace }}
+          get ingress frontend
+          -o jsonpath='{.spec.ingressClassName}
+          {.spec.rules[0].host}
+          {.spec.rules[0].http.paths[0].backend.service.name}'
+      register: frontend_ingress
+      changed_when: false
+
+    - name: Assert frontend Ingress routes the hostname to frontend.
+      ansible.builtin.assert:
+        that:
+          - frontend_ingress.stdout.split() | length == 3
+          - frontend_ingress.stdout.split()[0] == ingress_class_name
+          - frontend_ingress.stdout.split()[1] == ingress_hostname
+          - frontend_ingress.stdout.split()[2] == "frontend"
+        fail_msg: >-
+          Ingress frontend is misconfigured. Current state: {{ frontend_ingress.stdout }}
+        success_msg: >-
+          Ingress routes {{ ingress_hostname }} to Service frontend
+          (class {{ ingress_class_name }}).
+
+
+    # ================================================================
+    # 6. Verify HTTP storefront through the Ingress hostname
+    # ================================================================
+
+    # Send the Host header explicitly so the check does not depend on
+    # /etc/hosts on the control plane.
+    - name: Set Ingress endpoint.
       ansible.builtin.set_fact:
-        storefront_url: >-
-          http://{{ hostvars[groups['k8s_nodes'][0]].ansible_host }}:{{
-          frontend_service.stdout.split()[1] }}/
+        ingress_endpoint: >-
+          http://{{ hostvars[groups['k8s_nodes'][0]].ansible_host }}:{{ ingress_http_nodeport }}/
+        storefront_url: "http://{{ ingress_hostname }}:{{ ingress_http_nodeport }}/"
 
-
-    # ================================================================
-    # 6. Verify HTTP storefront
-    # ================================================================
-
-    - name: Request Online Boutique storefront.
+    - name: Request storefront through the Ingress hostname.
       ansible.builtin.uri:
-        url: "{{ storefront_url }}"
+        url: "{{ ingress_endpoint }}"
         method: GET
+        headers:
+          Host: "{{ ingress_hostname }}"
         return_content: true
         status_code: 200
       register: storefront_http
@@ -208,12 +269,12 @@
       until:
         - storefront_http.status | default(0) == 200
 
-    - name: Assert storefront returned HTTP 200.
+    - name: Assert storefront returned HTTP 200 through the Ingress.
       ansible.builtin.assert:
         that:
           - storefront_http.status == 200
         fail_msg: >-
-          Storefront {{ storefront_url }} did not return HTTP 200.
+          {{ storefront_url }} did not return HTTP 200 through the Ingress.
         success_msg: >-
           Storefront returned HTTP 200 from {{ storefront_url }}.
 
@@ -230,6 +291,27 @@
         success_msg: >-
           Storefront response contains recognisable Online Boutique content.
 
+    # Proves routing is by hostname, not "any request on the port".
+    - name: Request the Ingress with an unknown hostname.
+      ansible.builtin.uri:
+        url: "{{ ingress_endpoint }}"
+        method: GET
+        headers:
+          Host: "unknown.{{ ingress_hostname }}"
+        status_code: 404
+      register: unknown_host_http
+      changed_when: false
+
+    - name: Assert unknown hostname is not routed to the storefront.
+      ansible.builtin.assert:
+        that:
+          - unknown_host_http.status == 404
+        fail_msg: >-
+          Unknown hostname returned {{ unknown_host_http.status }}; routing is
+          not hostname-based.
+        success_msg: >-
+          Unknown hostname returned 404; routing is hostname-based.
+
 
     # ================================================================
     # 7. Print verification summary
@@ -245,6 +327,7 @@
           - "Kubernetes nodes: PASS"
           - "11 Online Boutique deployments: PASS"
           - "checkoutservice naming: PASS"
-          - "frontend NodePort: PASS"
-          - "Storefront HTTP verification: PASS"
+          - "frontend ClusterIP: PASS"
+          - "Ingress controller and frontend Ingress: PASS"
+          - "Hostname routing (200 known / 404 unknown): PASS"
           - "Storefront URL: {{ storefront_url }}"
