@@ -18,3 +18,7 @@ resources: {}
 startupProbe: {}
 readinessProbe: {}
 livenessProbe: {}
+
+# Optional scheduling and voluntary disruption policy.
+affinity: {}
+podDisruptionBudget: {}

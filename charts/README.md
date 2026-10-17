@@ -43,3 +43,13 @@ tests remain necessary to verify the full dependency chain.
 
 The pinned upstream snapshot contains no `LICENSE` file. This import adds no
 license and makes no assumption about one.
+
+## Operations integration (0.3.0)
+
+Adds optional Pod affinity and a chart-owned `policy/v1` PodDisruptionBudget.
+Defaults remain empty, so upstream rendering behavior is preserved when these
+features and reliability overrides are disabled. The frontend receives two
+replicas by default, preferred node separation, and minAvailable=1 from
+`vars/operations.yml`. Other services retain their existing replica counts.
+The 0.1.0 import checksums in UPSTREAM.json remain provenance, not hashes of
+the extended 0.3.0 chart.

@@ -20,7 +20,7 @@ import threading
 import time
 from urllib.error import HTTPError
 from urllib.parse import urlencode, urlparse
-from urllib.request import HTTPCookieProcessor, Request, build_opener
+from urllib.request import HTTPCookieProcessor, Request, ProxyHandler, build_opener
 
 
 def utc_now():
@@ -51,7 +51,7 @@ def validate_url(value):
 
 
 def run_load(base_url, output_dir, duration=300, workers=2, cycle_interval=5,
-             timeout=15):
+             timeout=15, host_header=None):
     """Run at most one purchase per worker per cycle_interval seconds.
 
     A worker waits after a fast cycle and never catches up after a slow cycle.
@@ -75,7 +75,8 @@ def run_load(base_url, output_dir, duration=300, workers=2, cycle_interval=5,
     with (output_dir / "cycles.jsonl").open("w", encoding="utf-8") as output:
         def worker(worker_id):
             jar = CookieJar()
-            opener = build_opener(HTTPCookieProcessor(jar))
+            opener = build_opener(ProxyHandler({}), HTTPCookieProcessor(jar),
+                                  smoke.RecordedRedirects(base_url, host_header))
             sequence = 0
             # Spread the initial requests across the configured cycle interval.
             time.sleep(min(worker_id * cycle_interval / workers, duration))
@@ -91,7 +92,8 @@ def run_load(base_url, output_dir, duration=300, workers=2, cycle_interval=5,
                         raise TimeoutError("Load deadline reached during a purchase")
                     req = Request(base_url + path,
                                   data=urlencode(fields).encode() if fields is not None else None,
-                                  headers={"User-Agent": "project01-bounded-load/1.0"})
+                                  headers={"User-Agent": "project01-bounded-load/1.0",
+                                           **({"Host": host_header} if host_header else {})})
                     step_started = time.monotonic()
                     step = {"method": req.get_method(), "path": path, "http_status": None}
                     record["requests"].append(step)
@@ -159,7 +161,7 @@ def run_load(base_url, output_dir, duration=300, workers=2, cycle_interval=5,
     summary = {
         "status": "PASS" if results and successes == len(results) else "FAIL",
         "started_at_utc": started_at, "finished_at_utc": utc_now(),
-        "base_url": base_url, "workers": workers, "duration_seconds": duration,
+        "base_url": base_url, "host_header": host_header, "workers": workers, "duration_seconds": duration,
         "cycle_interval_seconds": cycle_interval, "request_timeout_seconds": timeout,
         "maximum_started_cycles_per_second": workers / cycle_interval,
         "actual_elapsed_seconds": round(elapsed, 3), "cycles": len(results),
@@ -176,6 +178,7 @@ def run_load(base_url, output_dir, duration=300, workers=2, cycle_interval=5,
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--host-header", type=load_smoke_module().validate_host_header)
     parser.add_argument("base_url", type=validate_url)
     parser.add_argument("--output-dir", type=Path, required=True, help="New directory; never overwrite a run")
     parser.add_argument("--duration", type=float, default=300)
@@ -186,7 +189,7 @@ def main():
     if not 1 <= args.duration <= 1800 or args.cycle_interval < 2 or not 0 < args.timeout <= 60:
         parser.error("Use duration 1–1800 s, cycle interval >=2 s and timeout >0–60 s")
     summary = run_load(args.base_url, args.output_dir, args.duration, args.workers,
-                       args.cycle_interval, args.timeout)
+                       args.cycle_interval, args.timeout, args.host_header)
     print(json.dumps(summary, indent=2))
     return 0 if summary["status"] == "PASS" else 1
 

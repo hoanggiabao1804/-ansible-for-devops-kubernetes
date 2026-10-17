@@ -1,10 +1,11 @@
 # Probes and measured resource settings
 
-The `0.2.0` microservice chart accepts Kubernetes container `resources`,
+The `0.3.0` microservice chart (resources/probes introduced in `0.2.0`) accepts Kubernetes container `resources`,
 `startupProbe`, `readinessProbe`, and `livenessProbe` mappings. Empty chart defaults
 omit these fields. `vars/advanced.yml` enables the measured project settings for
 the ten microservice-chart releases. Redis still uses the pinned upstream chart.
-The existing checkout name and frontend NodePort overrides remain in effect.
+The checkout naming override remains. The integrated frontend is ClusterIP;
+external tests use the controller NodePort with `--host-header boutique.local`.
 
 ## Measure before choosing limits
 
@@ -12,7 +13,8 @@ The existing checkout name and frontend NodePort overrides remain in effect.
 
 ```bash
 ansible-playbook playbooks/metrics.yml
-sudo python3 scripts/measure-resources.py http://<worker-private-ip>:<nodeport> \
+sudo python3 scripts/measure-resources.py http://<worker-private-ip>:30080 \
+  --host-header boutique.local \
   --kubeconfig /etc/kubernetes/admin.conf \
   --output-dir /var/tmp/project01-resources-<unique-run> \
   --idle-seconds 120 --load-seconds 300 --interval 15 \
@@ -96,7 +98,8 @@ evidence of OOM. The script saves the container termination reason and kubelet
 events to distinguish the mechanisms. See [Kubernetes probe
 semantics](https://v1-32.docs.kubernetes.io/docs/tasks/configure-pod-container/configure-liveness-readiness-startup-probes/).
 
-The final group validation still requires integration and a clean Vagrant
+The historical validation below predates operations integration. The integrated
+source still requires live acceptance and a clean Vagrant
 rebuild; passing on an existing Azure lab does not replace that requirement.
 
 ## Measured sizing: 20261015T140139Z

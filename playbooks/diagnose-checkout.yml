@@ -8,6 +8,8 @@
 
   vars_files:
     - "{{ playbook_dir }}/../vars/microservices.yml"
+    - "{{ playbook_dir }}/../vars/cluster.yml"
+    - "{{ playbook_dir }}/../vars/access.yml"
 
   vars:
     checkout_diagnosis_root: /tmp/project01-checkout-diagnosis
@@ -200,19 +202,13 @@
           - "'name: checkoutservice' in checkout_renders.results[1].stdout"
           - "'name: servicename' not in checkout_renders.results[1].stdout"
 
-    - name: Read the actual frontend NodePort.
-      ansible.builtin.command:
-        argv: "{{ checkout_kubectl + ['get', 'service', 'frontend', '-o', 'jsonpath={.spec.ports[0].nodePort}'] }}"
-      register: checkout_frontend_port
-      changed_when: false
-
-    - name: Set the experiment URL and context.
+    - name: Use the shared Ingress endpoint for checkout tests.
       ansible.builtin.set_fact:
-        checkout_probe_url: "http://{{ hostvars[groups['k8s_nodes'][0]].ansible_host }}:{{ checkout_frontend_port.stdout }}"
+        checkout_probe_url: "{{ storefront_endpoint }}"
 
     - name: Write the experiment context.
       ansible.builtin.copy:
-        content: "{{ {'upstream_commit': checkout_upstream_commit.stdout, 'namespace': microservice_namespace, 'url': checkout_probe_url, 'original_revision': checkout_saved_revision, 'started_utc': ansible_facts['date_time']['iso8601'], 'purpose': 'Controlled reproduction of the bug already documented in the assignment and fixed by baseline'} | to_nice_json }}\n"
+        content: "{{ {'upstream_commit': checkout_upstream_commit.stdout, 'namespace': microservice_namespace, 'url': checkout_probe_url, 'host_header': storefront_host_header, 'original_revision': checkout_saved_revision, 'started_utc': ansible_facts['date_time']['iso8601'], 'purpose': 'Controlled reproduction of the bug already documented in the assignment and fixed by baseline'} | to_nice_json }}\n"
         dest: "{{ checkout_run_dir }}/context.json"
         mode: '0644'
 
@@ -224,7 +220,7 @@
 
     - name: Prove checkout works before the experiment.
       ansible.builtin.command:
-        argv: [python3, "{{ checkout_run_dir }}/checkout-smoke.py", "{{ checkout_probe_url }}", --expect, success, --evidence-dir, "{{ checkout_run_dir }}/baseline/http"]
+        argv: [python3, "{{ checkout_run_dir }}/checkout-smoke.py", "{{ checkout_probe_url }}", --host-header, "{{ storefront_host_header }}", --expect, success, --evidence-dir, "{{ checkout_run_dir }}/baseline/http"]
       # This probe creates a demo order and changes its own cart session.
       changed_when: true
 
@@ -271,7 +267,7 @@
 
         - name: Prove browsing and cart work while checkout fails for its backend.
           ansible.builtin.command:
-            argv: [python3, "{{ checkout_run_dir }}/checkout-smoke.py", "{{ checkout_probe_url }}", --expect, failure, --evidence-dir, "{{ checkout_run_dir }}/broken/http"]
+            argv: [python3, "{{ checkout_run_dir }}/checkout-smoke.py", "{{ checkout_probe_url }}", --host-header, "{{ storefront_host_header }}", --expect, failure, --evidence-dir, "{{ checkout_run_dir }}/broken/http"]
           register: checkout_failure_probe
           changed_when: true
           retries: 4
@@ -375,7 +371,7 @@
 
         - name: Prove checkout and cart clearing recover after restoration.
           ansible.builtin.command:
-            argv: [python3, "{{ checkout_run_dir }}/checkout-smoke.py", "{{ checkout_probe_url }}", --expect, success, --evidence-dir, "{{ checkout_run_dir }}/restored/http"]
+            argv: [python3, "{{ checkout_run_dir }}/checkout-smoke.py", "{{ checkout_probe_url }}", --host-header, "{{ storefront_host_header }}", --expect, success, --evidence-dir, "{{ checkout_run_dir }}/restored/http"]
           register: checkout_recovery_probe
           changed_when: true
           # The v0.2.3 frontend keeps a gRPC connection with reconnect backoff.

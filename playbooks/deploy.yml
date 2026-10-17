@@ -7,8 +7,17 @@
   vars_files:
     - "{{ playbook_dir }}/../vars/microservices.yml"
     - "{{ playbook_dir }}/../vars/advanced.yml"
+    - "{{ playbook_dir }}/../vars/operations.yml"
 
   pre_tasks:
+    - name: Validate the frontend replica and disruption budget settings.
+      ansible.builtin.assert:
+        that:
+          - operations_frontend_replicas | int >= 1
+          - operations_frontend_min_available | int >= 1
+          - operations_frontend_min_available | int <= operations_frontend_replicas | int
+          - groups['k8s_nodes'] | length >= 1
+
     - name: Install dependencies required for Git and Helm Ansible module.
       ansible.builtin.apt:
         name:
@@ -76,6 +85,10 @@
             | combine(microservice_reliability.get(item.release, {})
                 if microservice_reliability_enabled | bool else {}, recursive=True)
             | combine(item.overrides | default({}), recursive=True)
+            | combine({'appReplicas': operations_frontend_replicas | int,
+                       'affinity': operations_frontend_affinity,
+                       'podDisruptionBudget': {'minAvailable': operations_frontend_min_available | int}}
+                      if item.release == 'frontendservice' else {}, recursive=True)
           }}
 
         kubeconfig: "{{ kubernetes_admin_conf }}"

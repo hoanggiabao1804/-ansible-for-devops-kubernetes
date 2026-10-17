@@ -1,0 +1,30 @@
+---
+# Helper for scripts/check-idempotency.py. Does not install/change cluster objects.
+- name: Capture cluster identity without credentials
+  hosts: k8s_master
+  become: true
+  gather_facts: false
+  vars_files:
+    - ../vars/microservices.yml
+  tasks:
+    - name: Require an explicit controller output filename.
+      ansible.builtin.assert:
+        that:
+          - snapshot_output is defined
+          - snapshot_output.startswith('/')
+          - groups['k8s_master'] | length == 1
+
+    - name: Read selected cluster state using the local collector source.
+      ansible.builtin.command:
+        argv: [python3, '-', --kubeconfig, "{{ kubernetes_admin_conf }}", --helm, "{{ helm_binary_path }}"]
+        stdin: "{{ lookup('ansible.builtin.file', playbook_dir + '/../scripts/operations-state.py') }}"
+      register: operations_snapshot
+      changed_when: false
+
+    - name: Save the snapshot outside the repository on the controller.
+      ansible.builtin.copy:
+        content: "{{ operations_snapshot.stdout }}\n"
+        dest: "{{ snapshot_output }}"
+        mode: '0600'
+      delegate_to: localhost
+      become: false

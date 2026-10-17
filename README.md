@@ -1,3 +1,13 @@
+# Integrated operations branch
+
+This branch combines Ingress, vendored probes/resources, scaling and PDBs.
+**Start with [docs/operations.md](docs/operations.md)** for the current three-node
+lab, hostname-based smoke tests, explicit drain experiment and idempotency checks.
+The historical Part 1–5 and diagnosis notes below describe the baseline path;
+frontend is now ClusterIP, accessed through `http://boutique.local:30080`.
+No live results are claimed for the new operations implementation until its
+acceptance commands have been run on the target lab.
+
 # Project 01 — Part 1–5
 
 Triển khai Kubernetes hai node và Online Boutique bằng Vagrant, Ansible và Helm.
@@ -139,6 +149,7 @@ không hardcode port của lần deploy trước.
 ## Part 4 — Verify và thử ứng dụng
 
 ```bash
+ansible-playbook playbooks/ingress.yml
 ansible-playbook playbooks/verify.yml
 ```
 
@@ -199,7 +210,8 @@ Có thể kiểm thử một đơn hàng demo riêng; thay `<NodePort>` bằng p
 và dùng private IP của lab hoặc URL loopback qua SSH tunnel:
 
 ```bash
-python3 scripts/checkout-smoke.py 'http://192.168.56.11:<NodePort>' \
+python3 scripts/checkout-smoke.py 'http://192.168.56.11:30080' \
+  --host-header boutique.local \
   --expect success --evidence-dir ../project01-evidence/checkout-smoke
 ```
 

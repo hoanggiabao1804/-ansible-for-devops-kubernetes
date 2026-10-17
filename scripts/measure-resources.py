@@ -102,6 +102,7 @@ def main():
     load = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(load)
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--host-header", help="Ingress hostname passed to the load generator")
     parser.add_argument("base_url", type=load.validate_url)
     parser.add_argument("--output-dir", type=Path, required=True)
     parser.add_argument("--kubeconfig", required=True)
@@ -226,7 +227,9 @@ def main():
                     sys.executable, str(Path(__file__).with_name("boutique-load.py")),
                     args.base_url, "--output-dir", str(output / "load"),
                     "--duration", str(duration), "--workers", str(args.workers),
-                    "--cycle-interval", str(args.cycle_interval)], stdout=load_log, stderr=subprocess.STDOUT)
+                    "--cycle-interval", str(args.cycle_interval)]
+                    + (["--host-header", args.host_header] if args.host_header else []),
+                    stdout=load_log, stderr=subprocess.STDOUT)
             phase_start = time.monotonic()
             count = 0
             while time.monotonic() - phase_start < duration:

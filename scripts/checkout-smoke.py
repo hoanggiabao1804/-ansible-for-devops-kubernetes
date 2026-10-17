@@ -18,8 +18,8 @@ import sys
 import time
 import uuid
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlencode, urlparse
-from urllib.request import HTTPCookieProcessor, HTTPRedirectHandler, Request, build_opener
+from urllib.parse import urlencode, urlparse, urlunparse
+from urllib.request import HTTPCookieProcessor, HTTPRedirectHandler, Request, ProxyHandler, build_opener
 
 
 def utc_now():
@@ -72,15 +72,34 @@ class Page(HTMLParser):
 
 
 class RecordedRedirects(HTTPRedirectHandler):
-    def __init__(self):
+    def __init__(self, base_url=None, host_header=None):
         self.steps = []
+        self.base_url = base_url
+        self.host_header = host_header
+
 
     def redirect_request(self, req, fp, code, msg, headers, newurl):
         self.steps.append({
             "at_utc": utc_now(), "method": req.get_method(), "url": req.full_url,
             "http_status": code, "location": newurl,
         })
-        return super().redirect_request(req, fp, code, msg, headers, newurl)
+        # Keep redirects on the private endpoint, including absolute redirects
+        # using the virtual hostname. Never forward session cookies elsewhere.
+        if self.base_url:
+            target = urlparse(newurl)
+            endpoint = urlparse(self.base_url)
+            virtual = urlparse("//" + self.host_header) if self.host_header else None
+            virtual_matches = (virtual is not None and target.hostname == virtual.hostname
+                               and target.port in {virtual.port, endpoint.port,
+                                                   443 if endpoint.scheme == "https" else 80})
+            if (target.scheme != endpoint.scheme or target.username or target.password
+                    or not (target.netloc == endpoint.netloc or virtual_matches)):
+                raise RuntimeError("Redirect left the configured lab origin")
+            newurl = urlunparse(target._replace(netloc=endpoint.netloc))
+        redirected = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if redirected is not None and self.host_header:
+            redirected.add_header("Host", self.host_header)
+        return redirected
 
 
 def assert_cart(page, product_id):
@@ -99,9 +118,16 @@ def checkout_failure_markers(page):
     return ["checkoutservice"] + markers
 
 
+def validate_host_header(value):
+    if not re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9.-]*[A-Za-z0-9])?(?::[0-9]{1,5})?", value):
+        raise argparse.ArgumentTypeError("Use a hostname, optionally followed by :port")
+    return value
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("base_url", help="Private lab NodePort or loopback URL")
+    parser.add_argument("--host-header", type=validate_host_header, help="Ingress hostname; connect to base_url IP")
     parser.add_argument("--expect", choices=("success", "failure"), default="success")
     parser.add_argument("--evidence-dir", type=Path, required=True)
     parser.add_argument("--timeout", type=float, default=45, help="Seconds per HTTP request")
@@ -128,18 +154,19 @@ def main():
     evidence_dir = evidence_root / attempt_name
     evidence_dir.mkdir()
     jar = CookieJar()
-    redirects = RecordedRedirects()
-    opener = build_opener(HTTPCookieProcessor(jar), redirects)
+    redirects = RecordedRedirects(base_url, args.host_header)
+    opener = build_opener(ProxyHandler({}), HTTPCookieProcessor(jar), redirects)
     started = time.monotonic()
     result = {
-        "base_url": base_url, "status": "FAIL", "expected_outcome": args.expect,
+        "base_url": base_url, "host_header": args.host_header, "status": "FAIL", "expected_outcome": args.expect,
         "evidence_dir": str(evidence_dir), "started_at_utc": utc_now(), "steps": [],
     }
 
     def request(path, evidence_name, fields=None, expected_status=200):
         data = urlencode(fields).encode("utf-8") if fields is not None else None
         req = Request(base_url + path, data=data,
-                      headers={"User-Agent": "project01-checkout-smoke/1.0"})
+                      headers={"User-Agent": "project01-checkout-smoke/1.0",
+                               **({"Host": args.host_header} if args.host_header else {})})
         step = {"method": req.get_method(), "path": path, "started_at_utc": utc_now(),
                 "http_status": None, "html_file": None}
         result["steps"].append(step)

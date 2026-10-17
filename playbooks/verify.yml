@@ -8,16 +8,18 @@
     - "{{ playbook_dir }}/../vars/verify.yml"
     - "{{ playbook_dir }}/../vars/advanced.yml"
     - "{{ playbook_dir }}/../vars/cluster.yml"
-
-  vars:
-    expected_nodes:
-      - name: "{{ groups['k8s_master'][0] }}"
-        ip: "{{ hostvars[groups['k8s_master'][0]].ansible_host }}"
-
-      - name: "{{ groups['k8s_nodes'][0] }}"
-        ip: "{{ hostvars[groups['k8s_nodes'][0]].ansible_host }}"
+    - "{{ playbook_dir }}/../vars/operations.yml"
+    - "{{ playbook_dir }}/../vars/access.yml"
 
   tasks:
+    - name: Build the expected node list from the complete inventory.
+      ansible.builtin.set_fact:
+        expected_nodes: []
+
+    - name: Include each expected node and its private IP.
+      ansible.builtin.set_fact:
+        expected_nodes: "{{ expected_nodes + [{'name': item, 'ip': hostvars[item].ansible_host}] }}"
+      loop: "{{ groups['k8s'] }}"
 
     # ================================================================
     # 1. Verify Kubernetes nodes
@@ -71,20 +73,25 @@
       loop: "{{ verify_deployments }}"
       register: deployment_status
       changed_when: false
+      retries: 30
+      delay: 5
+      until:
+        - deployment_status.rc == 0
+        - deployment_status.stdout.split() == ([operations_frontend_replicas | string] * 3 if item == 'frontend' else ['1', '1', '1'])
 
     - name: Assert all Online Boutique deployments are available.
       ansible.builtin.assert:
         that:
           - item.rc == 0
           - item.stdout.split() | length == 3
-          - item.stdout.split()[0] == "1"
-          - item.stdout.split()[1] == "1"
-          - item.stdout.split()[2] == "1"
+          - item.stdout.split()[0] | int == (operations_frontend_replicas | int if item.item == 'frontend' else 1)
+          - item.stdout.split()[1] | int == (operations_frontend_replicas | int if item.item == 'frontend' else 1)
+          - item.stdout.split()[2] | int == (operations_frontend_replicas | int if item.item == 'frontend' else 1)
         fail_msg: >-
           Deployment {{ item.item }} is not fully available.
           Current state: {{ item.stdout }}
         success_msg: >-
-          Deployment {{ item.item }} is available (1/1).
+          Deployment {{ item.item }} has all configured replicas available.
       loop: "{{ deployment_status.results }}"
       loop_control:
         label: "{{ item.item }}"
@@ -174,7 +181,7 @@
           frontend is {{ frontend_service.stdout }}, expected ClusterIP.
           All external traffic must enter through the Ingress controller.
         success_msg: >-
-          frontend is ClusterIP and only reachable through the Ingress.
+          frontend is ClusterIP; external access is published through the Ingress.
 
 
     # ================================================================
@@ -250,7 +257,7 @@
     - name: Set Ingress endpoint.
       ansible.builtin.set_fact:
         ingress_endpoint: >-
-          http://{{ hostvars[groups['k8s_nodes'][0]].ansible_host }}:{{ ingress_http_nodeport }}/
+          {{ storefront_endpoint }}/
         storefront_url: "http://{{ ingress_hostname }}:{{ ingress_http_nodeport }}/"
 
     - name: Request storefront through the Ingress hostname.
@@ -258,7 +265,7 @@
         url: "{{ ingress_endpoint }}"
         method: GET
         headers:
-          Host: "{{ ingress_hostname }}"
+          Host: "{{ storefront_host_header }}"
         return_content: true
         status_code: 200
       register: storefront_http
@@ -320,6 +327,43 @@
     - name: Verify measured resources and application health probes.
       ansible.builtin.include_tasks: tasks/verify-reliability.yml
       when: microservice_reliability_enabled | bool
+
+    - name: Read the frontend disruption budget.
+      ansible.builtin.command:
+        argv: [kubectl, --kubeconfig, "{{ verify_kubeconfig }}", -n, "{{ verify_namespace }}", get, pdb, frontend, -o, json]
+      register: frontend_pdb
+      changed_when: false
+      retries: 30
+      delay: 2
+      until:
+        - frontend_pdb.rc == 0
+        - (frontend_pdb.stdout | from_json).status.observedGeneration | default(0) == (frontend_pdb.stdout | from_json).metadata.generation
+        - (frontend_pdb.stdout | from_json).status.currentHealthy | default(0) | int >= operations_frontend_min_available | int
+
+    - name: Assert the PDB protects the configured frontend replicas.
+      ansible.builtin.assert:
+        that:
+          - (frontend_pdb.stdout | from_json).spec.minAvailable | int == operations_frontend_min_available | int
+          - (frontend_pdb.stdout | from_json).spec.selector.matchLabels.app == 'frontend'
+          - (frontend_pdb.stdout | from_json).status.observedGeneration == (frontend_pdb.stdout | from_json).metadata.generation
+          - (frontend_pdb.stdout | from_json).status.currentHealthy | int >= operations_frontend_min_available | int
+
+    - name: Verify cluster and checkout DNS from an application Pod.
+      ansible.builtin.command:
+        argv:
+          - kubectl
+          - --kubeconfig
+          - "{{ verify_kubeconfig }}"
+          - --namespace
+          - "{{ verify_namespace }}"
+          - --request-timeout=30s
+          - exec
+          - deployment/emailservice
+          - --
+          - python
+          - -c
+          - "import socket; print(socket.getaddrinfo('kubernetes.default.svc.cluster.local', 443)); print(socket.getaddrinfo('checkoutservice', 5050))"
+      changed_when: false
 
     - name: Print verification summary.
       ansible.builtin.debug:

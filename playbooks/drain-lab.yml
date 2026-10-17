@@ -1,0 +1,80 @@
+---
+# Explicit disruption experiment; never imported by site.yml.
+- name: Demonstrate PDB rejection and controlled worker drain
+  hosts: k8s_master
+  become: true
+  gather_facts: false
+  vars_files:
+    - ../vars/microservices.yml
+    - ../vars/cluster.yml
+    - ../vars/access.yml
+    - ../vars/operations.yml
+  pre_tasks:
+    - name: Validate the selected lab and disruption scope.
+      ansible.builtin.assert:
+        that:
+          - not ansible_check_mode
+          - groups['k8s_nodes'] | length >= 2
+          - operations_drain_node in groups['k8s_nodes']
+          - operations_drain_scope in ['all', 'frontend']
+          - operations_drain_timeout_seconds | int >= 30
+          - operations_drain_timeout_seconds | int <= 600
+          - operations_evidence_root.startswith('/')
+  tasks:
+    - name: Create the external evidence root.
+      ansible.builtin.file:
+        path: "{{ operations_evidence_root }}"
+        state: directory
+        mode: '0755'
+
+    - name: Allocate a unique experiment directory.
+      ansible.builtin.tempfile:
+        state: directory
+        path: "{{ operations_evidence_root }}"
+        prefix: drain-
+      register: drain_run
+
+    - name: Install the drain observer and functional checkout test.
+      ansible.builtin.copy:
+        src: "{{ playbook_dir }}/../scripts/{{ item }}"
+        dest: "{{ drain_run.path }}/{{ item }}"
+        mode: '0755'
+      loop: [drain-experiment.py, checkout-smoke.py]
+
+    - name: Prove checkout works before draining.
+      ansible.builtin.command:
+        argv: [python3, "{{ drain_run.path }}/checkout-smoke.py", "{{ storefront_endpoint }}", --host-header, "{{ storefront_host_header }}", --evidence-dir, "{{ drain_run.path }}/before-http"]
+      changed_when: true
+
+    - name: Run the PDB and drain experiment with bounded cleanup.
+      ansible.builtin.command:
+        argv: [python3, "{{ drain_run.path }}/drain-experiment.py"]
+        stdin: >-
+          {{ {'output': drain_run.path + '/drain', 'kubeconfig': kubernetes_admin_conf,
+              'namespace': microservice_namespace, 'node': operations_drain_node,
+              'workers': groups['k8s_nodes'], 'scope': operations_drain_scope,
+              'delete_emptydir': operations_drain_delete_emptydir_data | bool,
+              'timeout': operations_drain_timeout_seconds | int,
+              'endpoint': storefront_endpoint, 'host': storefront_host_header} | to_json }}
+      register: drain_result
+      changed_when: true
+      # Cleanup is inside the script; preserve the failure until after recovery test.
+      failed_when: false
+
+    - name: Verify functional checkout after cleanup.
+      ansible.builtin.command:
+        argv: [python3, "{{ drain_run.path }}/checkout-smoke.py", "{{ storefront_endpoint }}", --host-header, "{{ storefront_host_header }}", --evidence-dir, "{{ drain_run.path }}/after-http"]
+      register: drain_checkout
+      changed_when: true
+      retries: 30
+      delay: 10
+      until: drain_checkout.rc == 0
+
+    - name: Require a successful experiment and cleanup.
+      ansible.builtin.assert:
+        that: drain_result.rc == 0
+        fail_msg: "Drain failed or cleanup was incomplete; inspect {{ drain_run.path }}. {{ drain_result.stdout }} {{ drain_result.stderr }}"
+        success_msg: "PDB/drain/recovery evidence: {{ drain_run.path }}"
+
+- name: Verify the final integrated state
+  ansible.builtin.import_playbook: verify.yml

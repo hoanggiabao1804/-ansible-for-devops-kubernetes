@@ -1,0 +1,39 @@
+---
+# Creates a real demo order; intentionally not part of idempotent site.yml.
+- name: Complete a demo purchase through hostname-based Ingress
+  hosts: k8s_master
+  become: true
+  gather_facts: false
+  vars_files:
+    - ../vars/microservices.yml
+    - ../vars/cluster.yml
+    - ../vars/access.yml
+    - ../vars/operations.yml
+  tasks:
+    - name: Create the external evidence root.
+      ansible.builtin.file:
+        path: "{{ operations_evidence_root }}"
+        state: directory
+        mode: '0755'
+
+    - name: Allocate an independent smoke run.
+      ansible.builtin.tempfile:
+        state: directory
+        path: "{{ operations_evidence_root }}"
+        prefix: smoke-
+      register: smoke_run
+
+    - name: Install the functional test.
+      ansible.builtin.copy:
+        src: ../scripts/checkout-smoke.py
+        dest: "{{ smoke_run.path }}/checkout-smoke.py"
+        mode: '0755'
+
+    - name: Complete checkout and verify the cart becomes empty.
+      ansible.builtin.command:
+        argv: [python3, "{{ smoke_run.path }}/checkout-smoke.py", "{{ storefront_endpoint }}", --host-header, "{{ storefront_host_header }}", --evidence-dir, "{{ smoke_run.path }}/http"]
+      changed_when: true
+
+    - name: Print the evidence location.
+      ansible.builtin.debug:
+        msg: "Checkout evidence: {{ smoke_run.path }}"

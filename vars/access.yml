@@ -1,0 +1,4 @@
+---
+# Physical private endpoint + virtual host; no controller /etc/hosts dependency.
+storefront_endpoint: "http://{{ hostvars[groups['k8s_nodes'][0]].ansible_host }}:{{ ingress_http_nodeport }}"
+storefront_host_header: "{{ ingress_hostname }}"

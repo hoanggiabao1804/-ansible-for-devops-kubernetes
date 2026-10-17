@@ -8,6 +8,12 @@
     - "{{ playbook_dir }}/../vars/microservices.yml"
 
   tasks:
+    - name: Remove the application Ingress while preserving shared controllers.
+      ansible.builtin.command:
+        argv: [kubectl, --kubeconfig, "{{ kubernetes_admin_conf }}", -n, "{{ microservice_namespace }}", delete, ingress, frontend, --ignore-not-found=true]
+      register: removed_frontend_ingress
+      changed_when: "'deleted' in removed_frontend_ingress.stdout"
+
 
     # ================================================================
     # 1. Show current Helm releases
